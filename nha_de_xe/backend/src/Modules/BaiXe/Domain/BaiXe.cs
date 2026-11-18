@@ -51,7 +51,10 @@ public class Camera
     public string Ten { get; private set; } = "";
     public string NguonAnh { get; private set; } = "";
     public bool DangBat { get; private set; }
-    /// <summary>LOI_VAO_KHU: đọc biển ở lối vào khu (Model A + PaddleOCR). GIAM_SAT: nhìn ô đỗ khu ô tô (PKLot).</summary>
+    /// <summary>
+    /// KHU_VAO: camera soi hướng xe đi VÀO khu. KHU_RA: camera soi hướng xe đi RA khỏi khu (đọc biển bằng Model A + PaddleOCR).
+    /// LOI_VAO_KHU: kiểu cũ, một camera dùng chung hai hướng. GIAM_SAT: nhìn ô đỗ khu ô tô (PKLot).
+    /// </summary>
     public string VaiTro { get; private set; } = VaiTroCamera.GiamSat;
 
     private Camera() { }
@@ -59,8 +62,8 @@ public class Camera
     public void DatVaiTro(string? vaiTro)
     {
         var v = (vaiTro ?? VaiTroCamera.GiamSat).Trim().ToUpperInvariant();
-        if (v is not (VaiTroCamera.LoiVaoKhu or VaiTroCamera.GiamSat))
-            throw new LoiNghiepVu(LoaiLoi.DuLieuKhongHopLe, "VAI_TRO_CAMERA_SAI", "Vai trò camera là LOI_VAO_KHU hoặc GIAM_SAT.");
+        if (v is not (VaiTroCamera.KhuVao or VaiTroCamera.KhuRa or VaiTroCamera.LoiVaoKhu or VaiTroCamera.GiamSat))
+            throw new LoiNghiepVu(LoaiLoi.DuLieuKhongHopLe, "VAI_TRO_CAMERA_SAI", "Vai trò camera là KHU_VAO, KHU_RA, LOI_VAO_KHU hoặc GIAM_SAT.");
         VaiTro = v;
     }
 
@@ -87,6 +90,8 @@ public class Camera
 
 public static class VaiTroCamera
 {
+    public const string KhuVao = "KHU_VAO";
+    public const string KhuRa = "KHU_RA";
     public const string LoiVaoKhu = "LOI_VAO_KHU";
     public const string GiamSat = "GIAM_SAT";
 }

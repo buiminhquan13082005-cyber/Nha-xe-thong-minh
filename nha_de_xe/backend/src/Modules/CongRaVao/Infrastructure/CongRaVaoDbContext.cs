@@ -31,6 +31,8 @@ public class CongRaVaoDbContext : DbContext
             e.Property(x => x.ViTriKhuId).HasColumnName("vi_tri_khu_id");
             e.Property(x => x.ViTriLuc).HasColumnName("vi_tri_luc").HasColumnType("datetime2(0)");
             e.Property(x => x.ViTriNguon).HasColumnName("vi_tri_nguon").HasMaxLength(10).IsUnicode(false);
+            e.Property(x => x.AnhVao).HasColumnName("anh_vao").HasMaxLength(120).IsUnicode(false);
+            e.Property(x => x.AnhRa).HasColumnName("anh_ra").HasMaxLength(120).IsUnicode(false);
             e.Ignore(x => x.DangMo);
         });
 

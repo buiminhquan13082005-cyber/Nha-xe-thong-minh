@@ -129,6 +129,17 @@ public static class QuyTacKhu
     /// </summary>
     public static string Huong(int? khuDangGhi, int khuCamera) => khuDangGhi == khuCamera ? HuongDi.Ra : HuongDi.Vao;
 
+    /// <summary>
+    /// Hướng theo vai trò camera: KHU_VAO (camera soi hướng vào) luôn là VÀO, KHU_RA (camera soi hướng ra) luôn là RA.
+    /// Camera kiểu cũ LOI_VAO_KHU dùng chung hai hướng thì suy theo khu đang ghi (<see cref="Huong"/>).
+    /// </summary>
+    public static string HuongTheoCamera(string vaiTroCamera, int? khuDangGhi, int khuCamera) => vaiTroCamera switch
+    {
+        "KHU_VAO" => HuongDi.Vao,
+        "KHU_RA" => HuongDi.Ra,
+        _ => Huong(khuDangGhi, khuCamera),
+    };
+
     /// <summary>Cùng biển, cùng camera trong khoảng chống đọc lặp thì bỏ qua (xe dừng trước camera).</summary>
     public static bool DocLap(DateTime? lanTruocCungCamera, DateTime bayGio, int giay) =>
         lanTruocCungCamera is DateTime t && (bayGio - t).TotalSeconds < giay;

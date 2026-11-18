@@ -15,6 +15,8 @@ public class CongRaVaoRepository : ICongRaVaoRepository
     public Task<LuotGui?> TimLuotAsync(int id, CancellationToken ct) => _db.LuotGui.FirstOrDefaultAsync(x => x.Id == id, ct);
     public Task<LuotGui?> TimLuotMoCuaXeAsync(int xeId, CancellationToken ct) =>
         _db.LuotGui.FirstOrDefaultAsync(x => x.XeId == xeId && x.ThoiGianRa == null, ct);
+    public Task<bool> CoSuKienTuAsync(string loai, string bienSo, DateTime tu, CancellationToken ct) =>
+        _db.SuKienCong.AsNoTracking().AnyAsync(x => x.Loai == loai && x.BienSo == bienSo && x.ThoiGian >= tu, ct);
     public Task<YeuCauXacNhan?> TimYeuCauAsync(int id, CancellationToken ct) => _db.YeuCau.FirstOrDefaultAsync(x => x.Id == id, ct);
     public Task<YeuCauXacNhan?> TimYeuCauDangChoAsync(int luotGuiId, CancellationToken ct) =>
         _db.YeuCau.FirstOrDefaultAsync(x => x.LuotGuiId == luotGuiId && x.KetQua == KetQuaXacNhan.Cho, ct);

@@ -22,6 +22,9 @@ public interface ICongRaVaoRepository
     void Them(YeuCauXacNhan yeuCau);
     void Them(SuKienCong suKien);
 
+    /// <summary>Đã có nhật ký cổng (loai) của biển này từ thời điểm "tu"? Dùng chống đọc lặp ở chế độ tự quét.</summary>
+    Task<bool> CoSuKienTuAsync(string loai, string bienSo, DateTime tu, CancellationToken ct) => Task.FromResult(false);
+
     /// <summary>
     /// Lưu mọi thay đổi trong một transaction. Lỗi có thể ném:
     /// YEU_CAU_DA_THAY_DOI (409): người khác vừa sửa cùng yêu cầu (ROWVERSION khác) → use case đọc lại và thử lại.
@@ -62,6 +65,23 @@ public interface ICauHinhCong
     Task<int> LayGiayGioiHanAiAsync(CancellationToken ct) => Task.FromResult(3);
 }
 
+/// <summary>Kho ảnh đối chứng chụp ở cổng (trong Docker: volume uploads dùng chung cho 2 API). Sau này đổi sang MinIO chỉ thay cài đặt.</summary>
+public interface IKhoAnhCong
+{
+    /// <summary>Lưu ảnh, trả về khoá (vd cong/20261118/3f2a....jpg) để ghi vào luot_gui.</summary>
+    Task<string> LuuAsync(byte[] anh, string loaiAnh, DateTime luc, CancellationToken ct);
+    Task<Stream?> MoAsync(string khoa, CancellationToken ct);
+}
+
+/// <summary>
+/// Lệnh mở barie. Chưa có thiết bị thật: bản giả lập ghi log. Barie mở khi lượt gửi được mở (xe vào) hoặc đóng (xe ra),
+/// nghe qua sự kiện XeDaVao / XeDaRa nên không use case nào phải biết tới barie.
+/// </summary>
+public interface IBarie
+{
+    Task MoAsync(string cong, int luotGuiId, CancellationToken ct);
+}
+
 // ------------------------- Nhận diện biển số -------------------------
 
 /// <summary>
@@ -69,7 +89,9 @@ public interface ICauHinhCong
 /// Có biển gõ tay thì dùng biển gõ tay (Admin đã nhìn tận mắt, UC-A08); không có thì để AI đọc ảnh.
 /// AdminId: người đang đứng màn hình cổng (ghi vào nhật ký khi Admin xác nhận / sửa biển số).
 /// </summary>
-public record AnhCong(string? BienSoGoTay, byte[]? Anh = null, string? LoaiAnh = null, int? AdminId = null);
+/// TuDong: khung hình do màn hình camera cổng tự chụp mỗi giây. Không thấy biển, hoặc biển vừa xử lý trong 30 giây,
+/// thì bỏ qua: không ghi nhật ký, không báo (tránh mỗi giây một dòng "từ chối").
+public record AnhCong(string? BienSoGoTay, byte[]? Anh = null, string? LoaiAnh = null, int? AdminId = null, bool TuDong = false);
 
 /// <summary>
 /// Kết quả đọc biển. BienSo = null khi không đọc được hoặc AI không chắc (dưới ngưỡng 0,85, nhiều biển);
@@ -77,7 +99,7 @@ public record AnhCong(string? BienSoGoTay, byte[]? Anh = null, string? LoaiAnh =
 /// CheDoThuCong = true: mô hình lỗi hoặc quá thời gian (3 giây), màn hình cổng yêu cầu Admin nhập biển số.
 /// </summary>
 public record KetQuaNhanDien(string? BienSo, decimal? DoTinCay, string? LyDo = null, IReadOnlyList<string>? UngVien = null,
-                             string LoaiBien = "KHONG_RO", bool GoTay = false, bool CheDoThuCong = false);
+                             string LoaiBien = "KHONG_RO", bool GoTay = false, bool CheDoThuCong = false, KhungBien? Khung = null);
 
 /// <summary>
 /// Cổng tới việc đọc biển số. Use case chỉ biết interface này (DIP), không biết có AI hay không.
@@ -125,10 +147,11 @@ public class NhanDienBangAi(IAiBienSoModule ai, ICauHinhCong? cauHinh = null, Mi
         }
 
         var diem = Math.Round((decimal)kq.DoTinCay, 4);
-        if (kq.BienSo is not null) return new(kq.BienSo, diem, LoaiBien: kq.LoaiBien);
+        var khung = kq.UngVien.FirstOrDefault()?.Khung;
+        if (kq.BienSo is not null) return new(kq.BienSo, diem, LoaiBien: kq.LoaiBien, Khung: khung);
         var ungVien = kq.UngVien.Select(u => u.BienSo).ToList();
         return new(null, ungVien.Count == 0 ? null : diem,
             ungVien.Count == 0 ? "AI không thấy biển số trong ảnh" : "AI chưa chắc chắn (dưới ngưỡng 0,85): Admin chọn hoặc sửa biển số",
-            ungVien, kq.LoaiBien);
+            ungVien, kq.LoaiBien, Khung: khung);
     }
 }

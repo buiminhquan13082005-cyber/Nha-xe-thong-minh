@@ -25,7 +25,19 @@ export interface KetQuaCong {
   /** Người dùng đã xác nhận nhưng còn phí quá hạn: trả trên app rồi barrier mới mở. */
   choThanhToan?: boolean;
   xeId?: number | null;
+  /** Vị trí biển trên ảnh (tỉ lệ 0..1 theo chiều rộng / cao), để vẽ ô vuông đè lên hình camera. */
+  khungBien?: KhungBien | null;
+  /** Chế độ tự quét: khung hình không thấy biển nên bỏ qua (không ghi nhật ký). */
+  khongThayBien?: boolean;
+  /** Giờ xe vào (cổng ra dùng để tính thời gian đỗ) và lượt có ảnh đối chứng lúc vào không. */
+  thoiGianVao?: string | null;
+  coAnhVao?: boolean;
 }
+
+/** Trạng thái lượt gửi: màn hình cổng ra hỏi lại trong lúc chờ xác nhận trên app. */
+export interface LuotCong { id: number; xeId: number; trangThai: TrangThaiLuot; thoiGianVao: string; thoiGianRa: string | null; coAnhVao: boolean; coAnhRa: boolean }
+
+export interface KhungBien { x: number; y: number; rong: number; cao: number }
 
 /**
  * Yêu cầu xác nhận xe ra (60 giây), gửi mọi người được dùng xe: ai trả lời trước thì tính.

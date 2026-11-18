@@ -74,7 +74,10 @@ public sealed class MoHinhDocBienSoOnnx(TuyChonMoHinh tuyChon) : IMoHinhDocBienS
             var tren = ocr.Doc(vung.Cat(0, 0, vung.Rong, tach));
             var duoi = ocr.Doc(vung.Cat(0, tach, vung.Rong, vung.Cao - tach));
             var haiDong = (tren.Chu + duoi.Chu, Math.Min(tren.Diem, duoi.Diem));
-            if (QuyTacDocBienSo.ChonCachDoc(motDong, haiDong) is { } chon) kq.Add(new(chon.BienSo, chon.DoTinCay));
+            if (QuyTacDocBienSo.ChonCachDoc(motDong, haiDong) is { } chon)
+                kq.Add(new(chon.BienSo, chon.DoTinCay,
+                    new KhungBien(Math.Round((double)x / img.Rong, 4), Math.Round((double)y / img.Cao, 4),
+                                  Math.Round((double)w / img.Rong, 4), Math.Round((double)h / img.Cao, 4))));
         }
         return kq;
     }

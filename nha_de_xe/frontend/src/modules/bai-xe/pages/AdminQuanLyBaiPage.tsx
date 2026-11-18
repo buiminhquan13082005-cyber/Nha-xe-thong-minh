@@ -6,6 +6,8 @@ import { dinhDangNgay, tenLoaiXe } from '@/shared/utils/format';
 import type { CameraBai, CauHinhBai, KhuQuanLy, OQuanLy, TrangThaiO, VaiTroCamera } from '../models';
 import { TEN_VAI_TRO_CAMERA } from '../models';
 import { TEN_TRANG_THAI_O } from '../models';
+import { MucChoKhu } from '@/modules/tim-xe/components/MucChoKhu';
+import type { KhuCho } from '@/modules/tim-xe/models';
 
 type Tab = 'khu' | 'o' | 'camera';
 
@@ -16,7 +18,9 @@ type Tab = 'khu' | 'o' | 'camera';
 export function AdminQuanLyBaiPage() {
   const { services } = useApp();
   const ch = useTaiDuLieu(() => services.baiXe.layCauHinh());
-  const [tab, setTab] = useState<Tab>('o');
+  // Số xe trong từng khu: camera khu hướng vào +1, hướng ra −1. Tự tải lại mỗi 5 giây.
+  const soXe = useTaiDuLieu(() => services.timXe.laySoXeKhu(), [], 5_000);
+  const [tab, setTab] = useState<Tab>('khu');
   const [tin, setTin] = useState<{ loai: 'ok' | 'loi'; noiDung: string } | null>(null);
 
   /** Chạy một thao tác ghi: báo lỗi nếu có, xong thì tải lại cấu hình. */
@@ -30,18 +34,23 @@ export function AdminQuanLyBaiPage() {
     <>
       <div className="tieu-de-trang">
         <h1>Quản lý bãi</h1>
-        <button className="nut nut-phu nut-nho" onClick={() => ch.taiLai()} disabled={ch.dangTai}>Tải lại</button>
+        <button className="nut nut-phu nut-nho" onClick={() => { void ch.taiLai(); void soXe.taiLai(); }} disabled={ch.dangTai}>Tải lại</button>
       </div>
-      <p className="mo">Khai báo khu, ô đỗ và camera. Trạng thái ô hôm nay Admin đặt tay; khi có AI ô trống, AI sẽ cập nhật thay (nguồn "AI").</p>
+      <h2>Số xe trong các khu</h2>
+      <p className="mo">Camera khu hướng vào nhận diện xe → cộng 1 vào khu; camera hướng ra nhận diện xe → trừ 1. Tự cập nhật mỗi 5 giây.</p>
+      {soXe.loi && <ThongBao loai="loi">{soXe.loi}</ThongBao>}
+      {soXe.duLieu && <MucChoKhu khu={soXe.duLieu.khu} chiTiet />}
+      <h2>Cấu hình bãi</h2>
+      <p className="mo">Khai báo khu, ô đỗ và camera. Mỗi khu nên có 2 camera: một camera soi hướng vào, một camera soi hướng ra.</p>
       <div className="tab">
-        <button className={tab === 'o' ? 'chon' : ''} onClick={() => setTab('o')}>Ô đỗ</button>
         <button className={tab === 'khu' ? 'chon' : ''} onClick={() => setTab('khu')}>Khu</button>
+        <button className={tab === 'o' ? 'chon' : ''} onClick={() => setTab('o')}>Ô đỗ</button>
         <button className={tab === 'camera' ? 'chon' : ''} onClick={() => setTab('camera')}>Camera</button>
       </div>
       {tin && <ThongBao loai={tin.loai}>{tin.noiDung}</ThongBao>}
       {ch.loi && <ThongBao loai="loi">{ch.loi}</ThongBao>}
       {ch.dangTai && !ch.duLieu && <DangTai />}
-      {ch.duLieu && tab === 'khu' && <QuanLyKhu ch={ch.duLieu} lam={lam} />}
+      {ch.duLieu && tab === 'khu' && <QuanLyKhu ch={ch.duLieu} lam={lam} soXe={soXe.duLieu?.khu ?? []} />}
       {ch.duLieu && tab === 'o' && <QuanLyO ch={ch.duLieu} lam={lam} />}
       {ch.duLieu && tab === 'camera' && <QuanLyCamera ch={ch.duLieu} lam={lam} />}
     </>
@@ -53,8 +62,9 @@ const tenKhu = (ch: CauHinhBai, id: number) => ch.khu.find((k) => k.id === id)?.
 
 // ---------------- Khu ----------------
 
-function QuanLyKhu({ ch, lam }: { ch: CauHinhBai; lam: Lam }) {
+function QuanLyKhu({ ch, lam, soXe }: { ch: CauHinhBai; lam: Lam; soXe: KhuCho[] }) {
   const { services } = useApp();
+  const dangCo = (id: number) => soXe.find((k) => k.id === id);
   const [moi, setMoi] = useState({ ten: '', loaiXeId: ch.loaiXe[0]?.id ?? 1, sucChua: 0 });
   const [sua, setSua] = useState<KhuQuanLy | null>(null);
 
@@ -72,13 +82,14 @@ function QuanLyKhu({ ch, lam }: { ch: CauHinhBai; lam: Lam }) {
       </form>
       <div className="bang-cuon">
         <table className="bang">
-          <thead><tr><th>Tên khu</th><th>Loại xe</th><th>Sức chứa</th><th>Số ô</th><th>Số camera</th><th></th></tr></thead>
+          <thead><tr><th>Tên khu</th><th>Loại xe</th><th>Sức chứa</th><th>Đang có xe</th><th>Còn trống</th><th>Số ô</th><th>Số camera</th><th></th></tr></thead>
           <tbody>
             {ch.khu.map((k) => sua?.id === k.id ? (
               <tr key={k.id}>
                 <td><input value={sua.ten} onChange={(e) => setSua({ ...sua, ten: e.target.value })} /></td>
                 <td><ChonLoaiXe ch={ch} value={sua.loaiXeId} onChange={(v) => setSua({ ...sua, loaiXeId: v })} /></td>
                 <td><input type="number" min={0} value={sua.sucChua} onChange={(e) => setSua({ ...sua, sucChua: Number(e.target.value) })} aria-label="Sức chứa" /></td>
+                <td>{dangCo(k.id)?.soXe ?? '—'}</td><td>{dangCo(k.id)?.conLai ?? '—'}</td>
                 <td>{k.soO}</td><td>{k.soCamera}</td>
                 <td className="hang-nut">
                   <button className="nut nut-nho" onClick={async () => {
@@ -92,6 +103,7 @@ function QuanLyKhu({ ch, lam }: { ch: CauHinhBai; lam: Lam }) {
                 <td><strong>{k.ten}</strong></td>
                 <td>{tenLoaiXe(ch.loaiXe.find((l) => l.id === k.loaiXeId)?.ten ?? k.loaiXeId)}</td>
                 <td>{k.sucChua}</td>
+                <td><strong>{dangCo(k.id)?.soXe ?? '—'}</strong></td><td>{dangCo(k.id)?.conLai ?? '—'}</td>
                 <td>{k.soO}</td><td>{k.soCamera}</td>
                 <td className="hang-nut">
                   <button className="nut nut-phu nut-nho" onClick={() => setSua(k)}>Sửa</button>
@@ -204,7 +216,7 @@ function ChonCamera({ ds, value, onChange }: { ds: CameraBai[]; value: number | 
 
 function QuanLyCamera({ ch, lam }: { ch: CauHinhBai; lam: Lam }) {
   const { services } = useApp();
-  const trong = { khuId: ch.khu[0]?.id ?? 0, ten: '', nguonAnh: '', dangBat: true, vaiTro: 'LOI_VAO_KHU' as VaiTroCamera };
+  const trong = { khuId: ch.khu[0]?.id ?? 0, ten: '', nguonAnh: '', dangBat: true, vaiTro: 'KHU_VAO' as VaiTroCamera };
   const [moi, setMoi] = useState(trong);
   const [sua, setSua] = useState<CameraBai | null>(null);
 

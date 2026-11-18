@@ -28,13 +28,15 @@ export interface XeTimXe {
 
 export interface TimXeCuaToi { bayGio: string; xe: XeTimXe[]; khuXeMay: KhuCho[] }
 
-export interface XeChuaDinhVi { luotGuiId: number; xeId: number; bienSo: string; thoiGianVao: string; soPhut: number; moiVaoKhu: string | null }
-export interface XeTrongKhu { luotGuiId: number; xeId: number; bienSo: string; khuId: number; luc: string | null }
-export interface DoiSoat { bayGio: string; khu: KhuCho[]; chuaDinhVi: XeChuaDinhVi[]; trongKhu: XeTrongKhu[] }
+/** Số xe từng khu (mọi loại xe): camera hướng vào +1, camera hướng ra −1. Admin và người dùng cùng xem. */
+export interface SoXeKhu { bayGio: string; khu: KhuCho[] }
 
-export type KetQuaCamera = 'DA_GHI' | 'BO_QUA' | 'DOI_SOAT';
+/** DA_GHI: đã ghi vào / ra khu · BO_QUA: đọc lặp hoặc không cần ghi · KHONG_KHOP: biển không thuộc xe nào trong bãi · KHONG_THAY_BIEN: khung không có biển. */
+export type KetQuaCamera = 'DA_GHI' | 'BO_QUA' | 'KHONG_KHOP' | 'KHONG_THAY_BIEN';
 export interface KetQuaCameraKhu {
   ketQua: KetQuaCamera; bienSo: string | null; khuId: number; huong: 'VAO' | 'RA' | null; thongDiep: string; ungVien: string[] | null;
+  doTinCay: number | null; khungBien: { x: number; y: number; rong: number; cao: number } | null;
+  khu: string | null; soXeTrongKhu: number | null; sucChua: number | null;
 }
 
 export const TEN_MUC: Record<MucCho, string> = { CON_NHIEU: 'Còn nhiều', SAP_DAY: 'Sắp đầy', DAY: 'Đầy' };

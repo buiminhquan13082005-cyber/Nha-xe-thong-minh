@@ -35,6 +35,19 @@ internal static class TraBienSo
     }
 }
 
+/// <summary>Màn hình camera tự quét (tuDong): khung hình nào nên bỏ qua, không ghi nhật ký.</summary>
+internal static class TuQuet
+{
+    /// <summary>Không thấy biển; hoặc biển đã có nhật ký ở cổng này trong 30 giây (xe còn đứng trước camera).</summary>
+    public static async Task<bool> NenBoQuaAsync(ICongRaVaoRepository repo, string cong, KetQuaNhanDien nd, DateTime bayGio, CancellationToken ct)
+    {
+        if (nd.CheDoThuCong) return false;
+        var bien = nd.BienSo ?? nd.UngVien?.FirstOrDefault();
+        if (bien is null) return true;
+        return await repo.CoSuKienTuAsync(cong, bien, bayGio - XeVaoUseCase.ChongLap, ct);
+    }
+}
+
 /// <summary>Xe tới cổng VÀO: đọc biển → tra xe → kiểm gói, loại biển, trùng lượt → mở lượt gửi hoặc từ chối. Lần nào cũng ghi nhật ký.</summary>
 public class XeVaoUseCase
 {
@@ -45,15 +58,30 @@ public class XeVaoUseCase
     private readonly IThongBaoModule _thongBao;
     private readonly IClock _clock;
     private readonly ILogger? _log;
+    private readonly IKhoAnhCong? _kho;
 
     public XeVaoUseCase(INhanDienBienSo ai, IGoiChoModule goiCho, ICongRaVaoRepository repo, IPhatSuKien phat,
-                        IThongBaoModule thongBao, IClock clock, ILogger<XeVaoUseCase>? log = null)
-    { _ai = ai; _goiCho = goiCho; _repo = repo; _phat = phat; _thongBao = thongBao; _clock = clock; _log = log; }
+                        IThongBaoModule thongBao, IClock clock, ILogger<XeVaoUseCase>? log = null, IKhoAnhCong? kho = null)
+    { _ai = ai; _goiCho = goiCho; _repo = repo; _phat = phat; _thongBao = thongBao; _clock = clock; _log = log; _kho = kho; }
+
+    /// <summary>Chống đọc lặp của màn hình camera (đề cương v10): 30 giây cho cùng một biển.</summary>
+    public static readonly TimeSpan ChongLap = TimeSpan.FromSeconds(30);
 
     public async Task<KetQuaCongDto> ThucHienAsync(AnhCong anh, CancellationToken ct = default)
     {
         var nd = await _ai.DocAsync(anh, ct);
+        var kq = await XuLyAsync(anh, nd, ct);
+        return nd.Khung is null || kq.KhongThayBien ? kq : kq with { KhungBien = nd.Khung };
+    }
+
+    private Task<bool> NenBoQuaAsync(KetQuaNhanDien nd, DateTime bayGio, CancellationToken ct) =>
+        TuQuet.NenBoQuaAsync(_repo, SuKienCong.Vao, nd, bayGio, ct);
+
+    private async Task<KetQuaCongDto> XuLyAsync(AnhCong anh, KetQuaNhanDien nd, CancellationToken ct)
+    {
         var bayGio = _clock.BayGio;
+        if (anh.TuDong && await NenBoQuaAsync(nd, bayGio, ct))
+            return new KetQuaCongDto(SuKienCong.Vao, false, false, nd.BienSo, "Bỏ qua khung hình", KhongThayBien: true);
         if (nd.CheDoThuCong)
             return await TuChoi(null, null, nd.LyDo!, bayGio, ct, thuCong: true);
         if (nd.BienSo is null) return await TuChoi(null, nd.DoTinCay, nd.LyDo ?? "Không đọc được biển số", bayGio, ct, nd.UngVien);
@@ -91,7 +119,10 @@ public class XeVaoUseCase
             return kq;
         }
 
-        var luot = LuotGui.Mo(xe.XeId, bayGio, nd.DoTinCay);
+        // Ảnh đối chứng: chỉ lưu khi xe được cho vào (khung hình bị từ chối không giữ lại)
+        var anhVao = anh.Anh is not null && anh.LoaiAnh is not null && _kho is not null
+            ? await _kho.LuuAsync(anh.Anh, anh.LoaiAnh, bayGio, ct) : null;
+        var luot = LuotGui.Mo(xe.XeId, bayGio, nd.DoTinCay, anhVao);
         _repo.Them(luot);
         _repo.Them(nd.GoTay && anh.AdminId is int admin
             ? SuKienCong.MoTayVao(xe.BienSo, luot, "nhập / xác nhận biển số tại cổng", admin, bayGio)
@@ -103,7 +134,8 @@ public class XeVaoUseCase
         await BaoSauKhiLuu.ChayAsync(async () =>
             await _thongBao.GuiNhieuAsync(await _goiCho.LayNguoiDungXeAsync(xe.XeId, ct), LoaiThongBao.Vao, NoiDungCong.DaVao(xe.BienSo, bayGio), ct), _log);
         return new KetQuaCongDto(SuKienCong.Vao, true, false, xe.BienSo, "Mời xe vào", luot.Id, DoTinCay: nd.DoTinCay,
-                                 LoaiBien: nd.LoaiBien, KhopGanDung: tra.GanDung, XeId: xe.XeId);
+                                 LoaiBien: nd.LoaiBien, KhopGanDung: tra.GanDung, XeId: xe.XeId,
+                                 ThoiGianVao: luot.ThoiGianVao, CoAnhVao: anhVao is not null);
     }
 
     private async Task<KetQuaCongDto> TuChoi(string? bienSo, decimal? tinCay, string lyDo, DateTime bayGio, CancellationToken ct,
@@ -132,15 +164,25 @@ public class XeRaUseCase
     private readonly IThongBaoModule _thongBao;
     private readonly IClock _clock;
     private readonly ILogger? _log;
+    private readonly IKhoAnhCong? _kho;
 
     public XeRaUseCase(INhanDienBienSo ai, IGoiChoModule goiCho, ICongRaVaoRepository repo, ILuotGuiQuery dangMo, ICauHinhCong cauHinh,
-                       KetThucYeuCau ketThuc, IThongBaoModule thongBao, IClock clock, ILogger<XeRaUseCase>? log = null)
-    { _ai = ai; _goiCho = goiCho; _repo = repo; _dangMo = dangMo; _cauHinh = cauHinh; _ketThuc = ketThuc; _thongBao = thongBao; _clock = clock; _log = log; }
+                       KetThucYeuCau ketThuc, IThongBaoModule thongBao, IClock clock, ILogger<XeRaUseCase>? log = null, IKhoAnhCong? kho = null)
+    { _ai = ai; _goiCho = goiCho; _repo = repo; _dangMo = dangMo; _cauHinh = cauHinh; _ketThuc = ketThuc; _thongBao = thongBao; _clock = clock; _log = log; _kho = kho; }
 
     public async Task<KetQuaCongDto> ThucHienAsync(AnhCong anh, CancellationToken ct = default)
     {
         var nd = await _ai.DocAsync(anh, ct);
+        var kq = await XuLyAsync(anh, nd, ct);
+        if (kq.KhongThayBien) return kq;
+        return kq with { KhungBien = nd.Khung ?? kq.KhungBien, DoTinCay = kq.DoTinCay ?? nd.DoTinCay };
+    }
+
+    private async Task<KetQuaCongDto> XuLyAsync(AnhCong anh, KetQuaNhanDien nd, CancellationToken ct)
+    {
         var bayGio = _clock.BayGio;
+        if (anh.TuDong && await TuQuet.NenBoQuaAsync(_repo, SuKienCong.Ra, nd, bayGio, ct))
+            return new KetQuaCongDto(SuKienCong.Ra, false, false, nd.BienSo, "Bỏ qua khung hình", KhongThayBien: true);
         if (nd.CheDoThuCong) return await TuChoi(null, null, null, nd.LyDo!, bayGio, ct, thuCong: true);
         if (nd.BienSo is null) return await TuChoi(null, nd.DoTinCay, null, nd.LyDo ?? "Không đọc được biển số", bayGio, ct, nd.UngVien);
 
@@ -160,10 +202,11 @@ public class XeRaUseCase
         // Đã xác nhận "Đúng là tôi" nhưng còn nợ: quét lại thì mở luôn nếu vừa trả xong
         if (luot.TrangThai == TrangThaiLuot.ChoThanhToan)
             return await _ketThuc.MoSauThanhToanAsync(luot, xe.BienSo, ct)
-                ? new KetQuaCongDto(SuKienCong.Ra, true, false, xe.BienSo, "Đã trả phí quá hạn, mời xe ra", luot.Id, XeId: xe.XeId)
+                ? new KetQuaCongDto(SuKienCong.Ra, true, false, xe.BienSo, "Đã trả phí quá hạn, mời xe ra", luot.Id, XeId: xe.XeId,
+                                    ThoiGianVao: luot.ThoiGianVao, CoAnhVao: luot.AnhVao is not null)
                 : new KetQuaCongDto(SuKienCong.Ra, false, false, xe.BienSo,
                     $"Chờ thanh toán phí quá hạn {NoiDungCong.Tien(await _goiCho.LaySoTienNoAsync(xe.XeId, ct))} đ trên ứng dụng",
-                    luot.Id, XeId: xe.XeId, ChoThanhToan: true);
+                    luot.Id, XeId: xe.XeId, ChoThanhToan: true, ThoiGianVao: luot.ThoiGianVao, CoAnhVao: luot.AnhVao is not null);
 
         // Xe đứng lâu trước camera: trả về đúng yêu cầu đang chờ, không tạo thêm, không gửi thêm thông báo (idempotent)
         var dangCho = await _repo.TimYeuCauDangChoAsync(luot.Id, ct);
@@ -176,7 +219,9 @@ public class XeRaUseCase
 
         var soGiay = await _cauHinh.LaySoGiayChoXacNhanAsync(ct);
         var yc = YeuCauXacNhan.Tao(luot.Id, bayGio, soGiay);
-        luot.BatDauChoXacNhan(nd.DoTinCay);
+        var anhRa = anh.Anh is not null && anh.LoaiAnh is not null && _kho is not null
+            ? await _kho.LuuAsync(anh.Anh, anh.LoaiAnh, bayGio, ct) : null;
+        luot.BatDauChoXacNhan(nd.DoTinCay, anhRa);
         _repo.Them(yc);
         await _repo.LuuAsync(ct);
 
@@ -187,7 +232,8 @@ public class XeRaUseCase
     }
 
     private static KetQuaCongDto DangChoXacNhan(string bienSo, LuotGui luot, YeuCauXacNhan yc, DateTime bayGio, string tin) =>
-        new(SuKienCong.Ra, false, true, bienSo, tin, luot.Id, yc.Id, yc.HetHanLuc, yc.SoGiayConLai(bayGio), XeId: luot.XeId);
+        new(SuKienCong.Ra, false, true, bienSo, tin, luot.Id, yc.Id, yc.HetHanLuc, yc.SoGiayConLai(bayGio), XeId: luot.XeId,
+            ThoiGianVao: luot.ThoiGianVao, CoAnhVao: luot.AnhVao is not null);
 
     private async Task<KetQuaCongDto> TuChoi(string? bienSo, decimal? tinCay, int? luotId, string lyDo, DateTime bayGio, CancellationToken ct,
                                              IReadOnlyList<string>? ungVien = null, bool thuCong = false)

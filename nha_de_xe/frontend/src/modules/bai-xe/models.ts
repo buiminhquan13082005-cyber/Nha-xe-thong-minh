@@ -76,8 +76,11 @@ export interface OQuanLy {
   id: number; khuId: number; maO: string; maQr: string; cameraId: number | null;
   trangThai: TrangThaiO; nguon: 'ADMIN' | 'AI' | null; capNhatLuc: string | null;
 }
-/** LOI_VAO_KHU: camera đặt ở lối vào khu, đọc biển để ghi xe vào / ra khu. GIAM_SAT: camera khác. */
-export type VaiTroCamera = 'LOI_VAO_KHU' | 'GIAM_SAT';
+/**
+ * KHU_VAO: camera khu soi hướng xe đi vào (ghi xe vào khu, số xe +1). KHU_RA: soi hướng xe đi ra (số xe −1).
+ * LOI_VAO_KHU: kiểu cũ, một camera dùng chung hai hướng. GIAM_SAT: camera khác.
+ */
+export type VaiTroCamera = 'KHU_VAO' | 'KHU_RA' | 'LOI_VAO_KHU' | 'GIAM_SAT';
 export interface CameraBai { id: number; khuId: number; ten: string; nguonAnh: string; dangBat: boolean; vaiTro: VaiTroCamera }
 export interface CauHinhBai { loaiXe: LoaiXe[]; khu: KhuQuanLy[]; o: OQuanLy[]; camera: CameraBai[] }
 
@@ -93,4 +96,6 @@ export interface ChoTrong { capNhatLuc: string; khu: KhuChoTrong[] }
 
 export const TEN_TRANG_THAI_O: Record<TrangThaiO, string> = { TRONG: 'Trống', CO_XE: 'Có xe', KHONG_RO: 'Không rõ' };
 
-export const TEN_VAI_TRO_CAMERA: Record<VaiTroCamera, string> = { LOI_VAO_KHU: 'Lối vào khu', GIAM_SAT: 'Giám sát' };
+export const TEN_VAI_TRO_CAMERA: Record<VaiTroCamera, string> = {
+  KHU_VAO: 'Camera khu · hướng vào', KHU_RA: 'Camera khu · hướng ra', LOI_VAO_KHU: 'Lối vào khu (2 hướng, cũ)', GIAM_SAT: 'Giám sát',
+};

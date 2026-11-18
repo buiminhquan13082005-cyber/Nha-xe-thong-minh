@@ -53,6 +53,8 @@ public class FakeCongRaVaoRepository : ICongRaVaoRepository, ILuotGuiQuery
     public void Them(LuotGui luot) => _cho.Add(luot);
     public void Them(YeuCauXacNhan yeuCau) => _cho.Add(yeuCau);
     public void Them(SuKienCong suKien) => _cho.Add(suKien);
+    public Task<bool> CoSuKienTuAsync(string loai, string bienSo, DateTime tu, CancellationToken ct) =>
+        Task.FromResult(SuKien.Any(x => x.Loai == loai && x.BienSo == bienSo && x.ThoiGian >= tu));
     public void BoTheoDoi() { SoLanBoTheoDoi++; _cho.Clear(); _dangTheoDoi.Clear(); }
 
     public Task LuuAsync(CancellationToken ct)
@@ -94,4 +96,23 @@ public class FakeCauHinhCong : ICauHinhCong
     public int GiayAi { get; set; } = 3;
     public Task<int> LaySoGiayChoXacNhanAsync(CancellationToken ct) => Task.FromResult(SoGiay);
     public Task<int> LayGiayGioiHanAiAsync(CancellationToken ct) => Task.FromResult(GiayAi);
+}
+
+public class FakeKhoAnhCong : NhaXe.Modules.CongRaVao.Application.IKhoAnhCong
+{
+    public Dictionary<string, byte[]> Anh { get; } = new();
+    public Task<string> LuuAsync(byte[] anh, string loaiAnh, DateTime luc, CancellationToken ct)
+    {
+        var khoa = $"cong/{luc:yyyyMMdd}/{Guid.NewGuid():N}.jpg";
+        Anh[khoa] = anh;
+        return Task.FromResult(khoa);
+    }
+    public Task<Stream?> MoAsync(string khoa, CancellationToken ct) =>
+        Task.FromResult<Stream?>(Anh.TryGetValue(khoa, out var b) ? new MemoryStream(b) : null);
+}
+
+public class FakeBarie : NhaXe.Modules.CongRaVao.Application.IBarie
+{
+    public List<(string Cong, int LuotGuiId)> DaMo { get; } = new();
+    public Task MoAsync(string cong, int luotGuiId, CancellationToken ct) { DaMo.Add((cong, luotGuiId)); return Task.CompletedTask; }
 }

@@ -7,11 +7,18 @@ namespace NhaXe.Modules.CongRaVao.Application;
 /// <param name="CheDoThuCong">AI lỗi hoặc quá 3 giây: màn hình cổng yêu cầu Admin nhập biển số.</param>
 /// <param name="CanAdmin">Kết quả cần Admin xem (từ chối ở cổng ra, biển lạ, ứng viên để chọn).</param>
 /// <param name="ChoThanhToan">Người dùng đã xác nhận nhưng còn phí quá hạn: trả phí trên app rồi barrier mới mở.</param>
+/// <param name="KhungBien">Vị trí biển AI tìm thấy trên ảnh (tỉ lệ 0..1), để màn hình camera vẽ ô vuông.</param>
+/// <param name="KhongThayBien">Chế độ tự quét: khung hình bị bỏ qua (không thấy biển / biển vừa xử lý), không ghi nhật ký.</param>
 public record KetQuaCongDto(string Loai, bool ChoQua, bool DangChoXacNhan, string? BienSo, string ThongDiep,
                             int? LuotGuiId = null, int? YeuCauId = null, DateTime? HetHanLuc = null, int? SoGiayConLai = null,
                             IReadOnlyList<string>? UngVien = null, decimal? DoTinCay = null,
                             string? LoaiBien = null, bool KhopGanDung = false, bool CheDoThuCong = false, bool CanAdmin = false,
-                            bool ChoThanhToan = false, int? XeId = null);
+                            bool ChoThanhToan = false, int? XeId = null,
+                            NhaXe.Modules.AiBienSo.Contracts.KhungBien? KhungBien = null, bool KhongThayBien = false,
+                            DateTime? ThoiGianVao = null, bool CoAnhVao = false);
+
+/// <summary>Trạng thái một lượt gửi cho màn hình camera cổng ra (hỏi lại mỗi 2 giây trong lúc chờ xác nhận trên app).</summary>
+public record LuotCongDto(int Id, int XeId, string TrangThai, DateTime ThoiGianVao, DateTime? ThoiGianRa, bool CoAnhVao, bool CoAnhRa);
 
 public record YeuCauDto(int Id, int LuotGuiId, int XeId, string BienSo, int ChuXeId, string TenChuXe,
                         DateTime TaoLuc, DateTime HetHanLuc, int SoGiayConLai,

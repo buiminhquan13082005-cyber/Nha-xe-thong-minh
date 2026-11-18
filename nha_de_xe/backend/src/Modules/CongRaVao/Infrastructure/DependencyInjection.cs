@@ -8,8 +8,12 @@ namespace NhaXe.Modules.CongRaVao.Infrastructure;
 public static class DependencyInjection
 {
     /// <param name="chuKyHetHan">Bao lâu quét yêu cầu quá hạn một lần. null = không chạy tác vụ nền (dùng trong test).</param>
-    public static IServiceCollection AddCongRaVaoModule(this IServiceCollection s, string connectionString, TimeSpan? chuKyHetHan = null)
+    /// <param name="thuMucAnh">Thư mục lưu ảnh đối chứng ở cổng (volume uploads).</param>
+    public static IServiceCollection AddCongRaVaoModule(this IServiceCollection s, string connectionString, TimeSpan? chuKyHetHan = null,
+                                                        string? thuMucAnh = null)
     {
+        s.AddSingleton<IKhoAnhCong>(new KhoAnhCongTrenDia(thuMucAnh ?? Path.Combine(AppContext.BaseDirectory, "uploads")));
+        s.AddSingleton<IBarie, BarieGiaLap>();
         s.AddDbContext<CongRaVaoDbContext>(o => o.UseSqlServer(connectionString));
         s.AddScoped<ILuotGuiQuery, LuotGuiQuery>();
         s.AddScoped<ICongRaVaoRepository, CongRaVaoRepository>();

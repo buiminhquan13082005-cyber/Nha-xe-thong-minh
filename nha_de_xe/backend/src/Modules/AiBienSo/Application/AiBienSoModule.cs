@@ -18,7 +18,7 @@ public class DocBienSoUseCase(IMoHinhDocBienSo moHinh)
     {
         QuyTacDocBienSo.KiemTraAnh(anh.NoiDung, anh.LoaiNoiDung);
         var ds = (await moHinh.DocAsync(anh, ct))
-            .Select(x => new BienSoUngVien(QuyTacDocBienSo.ChuanHoa(x.BienSo) ?? "", x.DoTinCay))
+            .Select(x => new BienSoUngVien(QuyTacDocBienSo.ChuanHoa(x.BienSo) ?? "", x.DoTinCay, x.Khung))
             .Where(x => x.BienSo.Length > 0 && double.IsFinite(x.DoTinCay) && x.DoTinCay is >= 0 and <= 1)
             .GroupBy(x => x.BienSo).Select(g => g.MaxBy(x => x.DoTinCay)!)
             .OrderByDescending(x => x.DoTinCay).Take(10).ToArray();

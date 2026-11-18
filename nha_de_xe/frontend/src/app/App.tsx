@@ -1,9 +1,9 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AdminBaiXePage, AdminQuanLyBaiPage } from '@/modules/bai-xe';
-import { AdminCongPage, RaVaoPage } from '@/modules/cong-ra-vao';
+import { CameraCongPage, RaVaoPage } from '@/modules/cong-ra-vao';
 import { AdminDuyetXePage, AdminGoiGiaPage, MuaGoiPage, PhiQuaHanPage, XeCuaToiPage } from '@/modules/goi-cho';
 import { AdminTaiKhoanPage, BaoVe, DangNhapPage, DangKyPage, QuenMatKhauPage, DoiMatKhauPage } from '@/modules/tai-khoan';
-import { AdminCameraKhuPage, AdminDoiSoatPage, TimXePage } from '@/modules/tim-xe';
+import { AdminCameraKhuPage, SoDoChoTrongPage, TimXePage } from '@/modules/tim-xe';
 import { AdminBaoCaoPage } from '@/modules/bao-cao';
 import { NhomGiaDinhPage } from '@/modules/nhom-gia-dinh';
 import { AiBienSoPage } from '@/modules/ai-bien-so';
@@ -32,20 +32,26 @@ export function App() {
           <Route path="/thong-bao" element={<ThongBaoPage />} />
           {/* 8. TimXe (xe máy: khu đang ở, mời vào khu, đường đi, "Đã đỗ xe", mức chỗ). Ô trống ô tô (PKLot) chưa làm. */}
           <Route path="/tim-xe" element={<TimXePage />} />
-          <Route path="/cho-trong" element={<Navigate to="/tim-xe" replace />} />
+          <Route path="/cho-trong" element={<Navigate to="/so-do" replace />} />
+          {/* Sơ đồ chỗ trống (người dùng và Admin cùng xem) */}
+          <Route path="/so-do" element={<SoDoChoTrongPage />} />
           <Route path="/doi-mat-khau" element={<DoiMatKhauPage />} />
         </Route>
       </Route>
       <Route element={<BaoVe vaiTro="ADMIN" />}>
         <Route element={<Layout />}>
-          {/* 5. CongRaVao (màn hình cổng) */}
-          <Route path="/admin/cong" element={<AdminCongPage />} />
+          {/* Hành trình xe (module 5 CongRaVao + 8 TimXe): camera cổng vào / ra, camera khu (hướng vào / hướng ra) */}
+          <Route path="/admin/cong/vao" element={<CameraCongPage cong="vao" />} />
+          <Route path="/admin/cong/ra" element={<CameraCongPage cong="ra" />} />
+          <Route path="/admin/cong/camera" element={<Navigate to="/admin/cong/vao" replace />} />
+          <Route path="/admin/cong" element={<Navigate to="/admin/cong/vao" replace />} />
           {/* 7. BaiXe */}
           <Route path="/admin/bai-xe" element={<AdminBaiXePage />} />
           <Route path="/admin/quan-ly-bai" element={<AdminQuanLyBaiPage />} />
           {/* 8. TimXe (Admin) */}
           <Route path="/admin/camera-khu" element={<AdminCameraKhuPage />} />
-          <Route path="/admin/doi-soat" element={<AdminDoiSoatPage />} />
+          <Route path="/admin/so-do" element={<SoDoChoTrongPage />} />
+          <Route path="/admin/doi-soat" element={<Navigate to="/admin/quan-ly-bai" replace />} />
           {/* 9. BaoCao */}
           <Route path="/admin/bao-cao" element={<AdminBaoCaoPage />} />
           {/* 1. TaiKhoan (Admin) */}

@@ -44,22 +44,26 @@ public class LuotGui
     public int? ViTriKhuId { get; private set; }
     public DateTime? ViTriLuc { get; private set; }
     public string? ViTriNguon { get; private set; }
+    /// <summary>Ảnh đối chứng (khoá tệp trong kho ảnh): chụp ở cổng vào / cổng ra. null = nhập tay, không có ảnh.</summary>
+    public string? AnhVao { get; private set; }
+    public string? AnhRa { get; private set; }
 
     private LuotGui() { }
 
     /// <summary>Cổng vào cho qua: mở lượt gửi mới.</summary>
-    public static LuotGui Mo(int xeId, DateTime luc, decimal? doTinCay) =>
-        new() { XeId = xeId, ThoiGianVao = luc, DoTinCayVao = doTinCay, TrangThai = TrangThaiLuot.DangGui };
+    public static LuotGui Mo(int xeId, DateTime luc, decimal? doTinCay, string? anhVao = null) =>
+        new() { XeId = xeId, ThoiGianVao = luc, DoTinCayVao = doTinCay, TrangThai = TrangThaiLuot.DangGui, AnhVao = anhVao };
 
     public bool DangMo => ThoiGianRa is null;
 
     /// <summary>Xe tới cổng ra: chờ người có quyền dùng xe xác nhận.</summary>
-    public void BatDauChoXacNhan(decimal? doTinCay)
+    public void BatDauChoXacNhan(decimal? doTinCay, string? anhRa = null)
     {
         if (TrangThai is not (TrangThaiLuot.DangGui or TrangThaiLuot.NghiMat))
             throw new LoiNghiepVu(LoaiLoi.XungDot, "LUOT_KHONG_CHO_RA", "Lượt gửi này không ở trạng thái cho phép ra.");
         TrangThai = TrangThaiLuot.ChoXacNhan;
         DoTinCayRa = doTinCay;
+        if (anhRa is not null) AnhRa = anhRa;
     }
 
     /// <summary>Yêu cầu ra không thành: quay lại "đang gửi", hoặc "nghi mất" nếu người dùng xe nói không phải mình.</summary>

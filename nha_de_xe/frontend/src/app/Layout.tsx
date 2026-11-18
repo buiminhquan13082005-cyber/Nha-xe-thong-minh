@@ -13,6 +13,7 @@ export function Layout() {
   const [dangThoat, setDangThoat] = useState(false);
   const [moi, setMoi] = useState<{ noiDung: string; khoa: number } | null>(null);
   const [lanTai, setLanTai] = useState(0);
+  const [moMenu, setMoMenu] = useState(false);
   // Thông báo tới qua SignalR: hiện thẻ nổi vài giây và tải lại số chưa đọc
   useNgheThongBao((s) => { setMoi({ noiDung: s.noiDung, khoa: Date.now() }); setLanTai((n) => n + 1); });
   useEffect(() => {
@@ -35,43 +36,41 @@ export function Layout() {
     return () => window.clearInterval(id);
   }, [laAdmin, services, viTri.pathname, lanTai]);
 
+  const nhom = laAdmin ? NHOM_ADMIN : NHOM_KHACH;
+  const linkTB = laAdmin ? '/admin/thong-bao' : '/thong-bao';
   return (
-    <div className="khung">
-      <header className="dau-trang">
+    <div className={`khung khung-doc ${moMenu ? 'mo-menu' : ''}`}>
+      <header className="thanh-tren">
+        <button className="nut-menu" aria-label="Mở menu" aria-expanded={moMenu} onClick={() => setMoMenu((m) => !m)}>☰</button>
+        <div className="thuong-hieu"><span className="logo-p" aria-hidden="true">P</span> Nhà xe thông minh</div>
+      </header>
+      {moMenu && <div className="man-che" onClick={() => setMoMenu(false)} />}
+      <aside className="thanh-doc" aria-label="Menu chính">
         <div className="thuong-hieu"><span className="logo-p" aria-hidden="true">P</span> Nhà xe thông minh</div>
         <nav>
-          {laAdmin ? (
-            <>
-              <NavLink to="/admin/cong">Cổng ra vào</NavLink>
-              <NavLink to="/admin/camera-khu">Camera khu</NavLink>
-              <NavLink to="/admin/doi-soat">Đối soát khu</NavLink>
-              <NavLink to="/admin/bai-xe">Sơ đồ bãi</NavLink>
-              <NavLink to="/admin/quan-ly-bai">Quản lý bãi</NavLink>
-              <NavLink to="/admin/ai-bien-so">Đọc biển số</NavLink>
-              <NavLink to="/admin/duyet-xe">Quản lý xe</NavLink>
-              <NavLink to="/admin/goi-gia">Gói &amp; giá</NavLink>
-              <NavLink to="/admin/tai-khoan">Tài khoản</NavLink>
-              <NavLink to="/admin/bao-cao">Báo cáo</NavLink>
-              <NavLink to="/admin/thong-bao">Thông báo{chuaDoc > 0 && <span className="so-dem">{chuaDoc}</span>}</NavLink>
-            </>
-          ) : (
-            <>
-              <NavLink to="/xe">Xe của tôi</NavLink>
-              <NavLink to="/mua-goi">Mua / gia hạn gói</NavLink>
-              <NavLink to="/tim-xe">Tìm xe</NavLink>
-              <NavLink to="/ra-vao">Ra vào</NavLink>
-              <NavLink to="/nhom-gia-dinh">Nhóm gia đình</NavLink>
-              <NavLink to="/thong-bao">Thông báo{chuaDoc > 0 && <span className="so-dem">{chuaDoc}</span>}</NavLink>
-            </>
-          )}
+          {nhom.map((n) => (
+            <div key={n.ten ?? 'goc'} className="nhom-menu">
+              {n.ten && <div className="ten-nhom">{n.ten}</div>}
+              {n.muc.map((m) => (
+                <NavLink key={m.to} to={m.to} end={m.end} onClick={() => setMoMenu(false)}>
+                  <span className="bieu-tuong" aria-hidden="true">{m.icon}</span>{m.ten}
+                </NavLink>
+              ))}
+            </div>
+          ))}
+          <div className="nhom-menu">
+            <NavLink to={linkTB} onClick={() => setMoMenu(false)}>
+              <span className="bieu-tuong" aria-hidden="true">🔔</span>Thông báo{chuaDoc > 0 && <span className="so-dem">{chuaDoc}</span>}
+            </NavLink>
+          </div>
         </nav>
         <div className="nguoi-dung">
-          <span>{phien?.hoTen}</span>
-          <NavLink to={laAdmin ? '/admin/doi-mat-khau' : '/doi-mat-khau'}>Đổi mật khẩu</NavLink>
+          <div className="ten-nguoi-dung">{phien?.hoTen}<span>{laAdmin ? 'Quản trị' : 'Thành viên'}</span></div>
+          <NavLink to={laAdmin ? '/admin/doi-mat-khau' : '/doi-mat-khau'} onClick={() => setMoMenu(false)}>Đổi mật khẩu</NavLink>
           <button className="nut nut-phu nut-nho" disabled={dangThoat} onClick={() => void thoat()}>Đăng xuất</button>
           {loiDangXuat && <span role="alert">{loiDangXuat}</span>}
         </div>
-      </header>
+      </aside>
       <main className="noi-dung"><Outlet /></main>
       {moi && (
         <div key={moi.khoa} className="the-noi" role="status" onClick={() => { setMoi(null); nav(laAdmin ? '/admin/thong-bao' : '/thong-bao'); }}>
@@ -82,3 +81,40 @@ export function Layout() {
     </div>
   );
 }
+
+interface MucMenu { to: string; ten: string; icon: string; end?: boolean }
+interface NhomMenu { ten: string | null; muc: MucMenu[] }
+
+/** Menu dọc. "Hành trình xe" gộp cổng vào, cổng ra và camera khu (module 5 + 8). */
+const NHOM_ADMIN: NhomMenu[] = [
+  { ten: 'Hành trình xe', muc: [
+    { to: '/admin/cong/vao', ten: 'Cổng vào', icon: '⇥' },
+    { to: '/admin/cong/ra', ten: 'Cổng ra', icon: '⇤' },
+    { to: '/admin/camera-khu', ten: 'Camera khu', icon: '◎' },
+  ] },
+  { ten: 'Bãi xe', muc: [
+    { to: '/admin/so-do', ten: 'Sơ đồ chỗ trống', icon: '🗺' },
+    { to: '/admin/quan-ly-bai', ten: 'Quản lý bãi', icon: '⚙' },
+    { to: '/admin/bai-xe', ten: 'Xe trong bãi', icon: '▦' },
+  ] },
+  { ten: 'Xe & gói', muc: [
+    { to: '/admin/duyet-xe', ten: 'Quản lý xe', icon: '🛵' },
+    { to: '/admin/goi-gia', ten: 'Gói & giá', icon: '₫' },
+  ] },
+  { ten: 'Hệ thống', muc: [
+    { to: '/admin/ai-bien-so', ten: 'Đọc biển số (AI)', icon: '⌕' },
+    { to: '/admin/tai-khoan', ten: 'Tài khoản', icon: '👤' },
+    { to: '/admin/bao-cao', ten: 'Báo cáo', icon: '📊' },
+  ] },
+];
+
+const NHOM_KHACH: NhomMenu[] = [
+  { ten: null, muc: [
+    { to: '/xe', ten: 'Xe của tôi', icon: '🛵' },
+    { to: '/mua-goi', ten: 'Mua / gia hạn gói', icon: '₫' },
+    { to: '/tim-xe', ten: 'Tìm xe', icon: '⌖' },
+    { to: '/so-do', ten: 'Sơ đồ chỗ trống', icon: '🗺' },
+    { to: '/ra-vao', ten: 'Ra vào', icon: '⇄' },
+    { to: '/nhom-gia-dinh', ten: 'Nhóm gia đình', icon: '👪' },
+  ] },
+];

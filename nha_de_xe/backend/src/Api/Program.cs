@@ -37,7 +37,7 @@ builder.Services.AddScoped<IPhatSuKien, PhatSuKienTrongTienTrinh>();
 builder.Services.AddGoiChoModule(connStr, thuMucTep, TimeSpan.FromMinutes(1));
 builder.Services.AddNhomGiaDinhModule(connStr); // quản lý nhóm; GoiCho hỏi thành viên qua Contracts
 // CongRaVao: xe vào / ra, xác nhận kép 60 giây; quét yêu cầu quá hạn mỗi 5 giây
-builder.Services.AddCongRaVaoModule(connStr, TimeSpan.FromSeconds(5));
+builder.Services.AddCongRaVaoModule(connStr, TimeSpan.FromSeconds(5), thuMucTep);
 builder.Services.AddThongBaoModule(connStr);    // hộp thư người dùng + Admin; module khác gửi qua IThongBaoModule
 builder.Services.AddBaiXeModule(connStr);       // sơ đồ bãi, quản lý khu / ô / camera, chỗ trống, đường đi (Dijkstra)
 // TimXe (xe máy): nghe XeDaVao để chỉ khu + giữ suất 5 phút; camera lối vào khu; tìm xe. Trả suất quá hạn mỗi 30 giây.

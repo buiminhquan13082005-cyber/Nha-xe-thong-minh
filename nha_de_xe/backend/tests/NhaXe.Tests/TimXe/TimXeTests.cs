@@ -172,7 +172,7 @@ public class TimXeTests
     }
 
     [Fact]
-    public async Task AiDocLech1KyTu_KhopXeTrongBai_BienLa_DuaVaoDoiSoat()
+    public async Task AiDocLech1KyTu_KhopXeTrongBai_BienLa_BaoAdmin()
     {
         await VaoCong(2, 10);
         _ai.KetQua = new KetQuaDocBienSo("29B112346", .9, false, [new("29B112346", .9)]);
@@ -180,9 +180,54 @@ public class TimXeTests
         Assert.Equal(("29B112345", KetQuaCamera.DaGhi), (kq.BienSo, kq.KetQua));
 
         var la = await Camera().ThucHienAsync(4, "43B155555", null, null);
-        Assert.Equal(KetQuaCamera.DoiSoat, la.KetQua);
+        Assert.Equal(KetQuaCamera.KhongKhop, la.KetQua);
         Assert.Contains(_tb.DaGui, t => t.TaiKhoanId is null && t.Loai == LoaiTB.DoiSoat && t.NoiDung.Contains("43B155555"));
     }
+
+    [Fact]
+    public async Task TuQuet_KhungKhongCoBien_KhongGhiKhongBao()
+    {
+        await VaoCong(2, 10);
+        var truoc = _tb.DaGui.Count;
+        _ai.KetQua = new KetQuaDocBienSo(null, 0, true, []);
+        var kq = await Camera().ThucHienAsync(4, null, [255, 216, 255], "image/jpeg", default, tuDong: true);
+        Assert.Equal(KetQuaCamera.KhongThayBien, kq.KetQua);
+        Assert.Empty(_repo.ViTri);
+        Assert.Equal(truoc, _tb.DaGui.Count);
+    }
+
+    [Fact]
+    public async Task CameraHuongVao_CongMot_CameraHuongRa_TruMot()
+    {
+        _bai.Camera.AddRange([new(20, 3, "CAM-C-VAO", "KHU_VAO", true), new(21, 3, "CAM-C-RA", "KHU_RA", true)]);
+        await VaoCong(2, 10);
+        var tinh = Tinh();
+        var cam = new XuLyCameraKhuUseCase(_bai, _cong, _goiCho, _ai, _repo, _ch, _tb, _clock, tinh);
+
+        // camera hướng ra thấy xe chưa ghi trong khu: không trừ
+        var raTruoc = await cam.ThucHienAsync(21, "29B112345", null, null);
+        Assert.Equal((KetQuaCamera.BoQua, HuongDi.Ra), (raTruoc.KetQua, raTruoc.Huong));
+
+        var vao = await cam.ThucHienAsync(20, "29B112345", null, null);
+        Assert.Equal((KetQuaCamera.DaGhi, HuongDi.Vao, 1, "Khu C"), (vao.KetQua, vao.Huong, vao.SoXeTrongKhu, vao.Khu));
+        Assert.Equal(3, _cong.TheoXe[2].ViTriKhuId);
+
+        // camera hướng vào thấy lại (sau 30 giây): xe đã ở trong khu, không cộng lần hai
+        _clock.BayGio = _clock.BayGio.AddMinutes(1);
+        Assert.Equal(KetQuaCamera.BoQua, (await cam.ThucHienAsync(20, "29B112345", null, null)).KetQua);
+
+        var ra = await cam.ThucHienAsync(21, "29B112345", null, null);
+        Assert.Equal((KetQuaCamera.DaGhi, HuongDi.Ra, 0), (ra.KetQua, ra.Huong, ra.SoXeTrongKhu));
+        Assert.Null(_cong.TheoXe[2].ViTriKhuId);
+    }
+
+    [Theory]
+    [InlineData("KHU_VAO", 3, 3, "VAO")]
+    [InlineData("KHU_RA", null, 3, "RA")]
+    [InlineData("LOI_VAO_KHU", null, 3, "VAO")]
+    [InlineData("LOI_VAO_KHU", 3, 3, "RA")]
+    public void HuongTheoVaiTroCamera(string vaiTro, int? dangGhi, int khuCamera, string huong) =>
+        Assert.Equal(huong, QuyTacKhu.HuongTheoCamera(vaiTro, dangGhi, khuCamera));
 
     [Fact]
     public async Task XeMayDiVaoKhuOTo_VanGhi_BaoAdmin()
@@ -197,7 +242,7 @@ public class TimXeTests
     public async Task CameraGiamSat_KhongNhanAnhLoiVao()
     {
         var loi = await Assert.ThrowsAsync<LoiNghiepVu>(() => Camera().ThucHienAsync(9, "29B112345", null, null));
-        Assert.Equal("KHONG_PHAI_CAMERA_LOI_VAO", loi.Ma);
+        Assert.Equal("KHONG_PHAI_CAMERA_KHU", loi.Ma);
     }
 
     [Fact]
@@ -241,22 +286,19 @@ public class TimXeTests
     }
 
     [Fact]
-    public async Task DoiSoat_XeQua15PhutChuaCoKhu_AdminGanVaGo()
+    public async Task AdminGanVaGoKhu_SoXeKhuCapNhat()
     {
         await VaoCong(2, 10);
-        _clock.BayGio = _clock.BayGio.AddMinutes(14);
-        var uc = new LayDoiSoatUseCase(_goiCho, _cong, _repo, _ch, _bai, Muc(), _clock);
-        Assert.Empty((await uc.ThucHienAsync()).ChuaDinhVi);
-        _clock.BayGio = _clock.BayGio.AddMinutes(1);
-        var ds = await uc.ThucHienAsync();
-        Assert.Equal(("29B112345", 15, "Khu D"), (ds.ChuaDinhVi.Single().BienSo, ds.ChuaDinhVi.Single().SoPhut, ds.ChuaDinhVi.Single().MoiVaoKhu));
-
+        var uc = new LaySoXeKhuUseCase(Muc(), _clock);
         var gan = new AdminGanKhuUseCase(_cong, _bai, _repo, _clock);
         await gan.ThucHienAsync(new GanKhuLenh(10, 3));
         Assert.Equal(3, _cong.TheoXe[2].ViTriKhuId);
-        Assert.Single((await uc.ThucHienAsync()).TrongKhu);
+        var khu = await uc.ThucHienAsync();
+        Assert.Equal(1, khu.Khu.Single(k => k.Id == 3).SoXe);
+        Assert.Contains(khu.Khu, k => k.Id == 1); // sơ đồ có cả khu ô tô
         await gan.ThucHienAsync(new GanKhuLenh(10, null));
         Assert.Null(_cong.TheoXe[2].ViTriKhuId);
+        Assert.Equal(0, (await uc.ThucHienAsync()).Khu.Single(k => k.Id == 3).SoXe);
     }
 
     [Fact]

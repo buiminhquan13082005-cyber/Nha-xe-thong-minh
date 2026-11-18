@@ -57,6 +57,104 @@ public class CongRaVaoUseCaseTests
         Assert.Single(_repo.Luot);
     }
 
+    // ---- Ảnh đối chứng và barie (module Hành trình xe) ----
+
+    [Fact]
+    public async Task Vao_ChoQua_LuuAnhDoiChung_Ra_LuuAnhRa_XemLaiDuoc()
+    {
+        var kho = new FakeKhoAnhCong();
+        _ai.KetQua = new KetQuaDocBienSo("30A12345", .97, false, [new("30A12345", .97)]);
+        var vao = await new XeVaoUseCase(Ai(), _goiCho, _repo, _phat, _tb, _clock, kho: kho).ThucHienAsync(new AnhCong(null, AnhJpg, "image/jpeg"));
+        Assert.True(vao.CoAnhVao); Assert.Equal(_clock.BayGio, vao.ThoiGianVao);
+        Assert.NotNull(_repo.Luot.Single().AnhVao);
+
+        _clock.BayGio = _clock.BayGio.AddHours(2);
+        var ra = await new XeRaUseCase(Ai(), _goiCho, _repo, _repo, new FakeCauHinhCong(), KetThuc(), _tb, _clock, kho: kho)
+            .ThucHienAsync(new AnhCong(null, [1, 2, 3], "image/jpeg"));
+        Assert.True(ra.DangChoXacNhan); Assert.True(ra.CoAnhVao);
+        Assert.Equal(_clock.BayGio.AddHours(-2), ra.ThoiGianVao);
+
+        var luot = await new LayLuotCongUseCase(_repo).ThucHienAsync(vao.LuotGuiId!.Value);
+        Assert.True(luot.CoAnhVao); Assert.True(luot.CoAnhRa); Assert.Equal(TrangThaiLuot.ChoXacNhan, luot.TrangThai);
+        await using var anhRa = await new LayAnhDoiChungUseCase(_repo, kho).ThucHienAsync(luot.Id, "ra");
+        Assert.Equal(3, anhRa!.Length);
+        Assert.Null(await new LayAnhDoiChungUseCase(_repo, kho).ThucHienAsync(luot.Id, "khac"));
+    }
+
+    [Fact]
+    public async Task Vao_TuChoi_KhongLuuAnh()
+    {
+        var kho = new FakeKhoAnhCong();
+        _ai.KetQua = new KetQuaDocBienSo("29B112345", .95, false, [new("29B112345", .95)]); // hết gói
+        var kq = await new XeVaoUseCase(Ai(), _goiCho, _repo, _phat, _tb, _clock, kho: kho).ThucHienAsync(new AnhCong(null, AnhJpg, "image/jpeg"));
+        Assert.False(kq.ChoQua); Assert.Empty(kho.Anh);
+    }
+
+    [Fact]
+    public async Task Barie_MoTheoSuKienXeDaVao_XeDaRa()
+    {
+        var barie = new FakeBarie();
+        await new MoBarieKhiXeVao(barie).XuLyAsync(new XeDaVao(7, 1, _clock.BayGio), default);
+        await new MoBarieKhiXeRa(barie).XuLyAsync(new XeDaRa(7, 1, _clock.BayGio), default);
+        Assert.Equal([("VAO", 7), ("RA", 7)], barie.DaMo);
+    }
+
+    [Fact]
+    public async Task Ra_TuDong_KhongThayBien_BoQua()
+    {
+        _ai.KetQua = new KetQuaDocBienSo(null, 0, true, []);
+        var kq = await Ra().ThucHienAsync(new AnhCong(null, AnhJpg, "image/jpeg", 1, TuDong: true));
+        Assert.True(kq.KhongThayBien); Assert.Empty(_repo.SuKien);
+    }
+
+    // ---- Màn hình camera tự quét (tuDong) ----
+
+    [Fact]
+    public async Task Vao_TuDong_KhongThayBien_BoQua_KhongGhiNhatKy()
+    {
+        _ai.KetQua = new KetQuaDocBienSo(null, 0, true, []);
+        var kq = await Vao().ThucHienAsync(new AnhCong(null, AnhJpg, "image/jpeg", 1, TuDong: true));
+        Assert.True(kq.KhongThayBien); Assert.False(kq.ChoQua);
+        Assert.Empty(_repo.SuKien); Assert.Empty(_repo.Luot);
+    }
+
+    [Fact]
+    public async Task Vao_KhongTuDong_KhongThayBien_VanGhiTuChoi()
+    {
+        _ai.KetQua = new KetQuaDocBienSo(null, 0, true, []);
+        var kq = await Vao().ThucHienAsync(new AnhCong(null, AnhJpg, "image/jpeg"));
+        Assert.False(kq.KhongThayBien);
+        Assert.Single(_repo.SuKien);
+    }
+
+    [Fact]
+    public async Task Vao_TuDong_CungBienTrong30Giay_BoQua_Sau30GiayXuLyLai()
+    {
+        _ai.KetQua = new KetQuaDocBienSo("29B112345", .95, false, [new("29B112345", .95)]); // xe máy hết gói → từ chối
+        var lan1 = await Vao().ThucHienAsync(new AnhCong(null, AnhJpg, "image/jpeg", 1, TuDong: true));
+        Assert.False(lan1.KhongThayBien); Assert.Contains("hết hạn", lan1.ThongDiep);
+
+        _clock.BayGio = _clock.BayGio.AddSeconds(10);
+        var lan2 = await Vao().ThucHienAsync(new AnhCong(null, AnhJpg, "image/jpeg", 1, TuDong: true));
+        Assert.True(lan2.KhongThayBien);
+        Assert.Single(_repo.SuKien); // không thêm dòng "từ chối" mỗi giây
+
+        _clock.BayGio = _clock.BayGio.AddSeconds(25);
+        var lan3 = await Vao().ThucHienAsync(new AnhCong(null, AnhJpg, "image/jpeg", 1, TuDong: true));
+        Assert.False(lan3.KhongThayBien);
+        Assert.Equal(2, _repo.SuKien.Count);
+    }
+
+    [Fact]
+    public async Task Vao_BangAnh_TraKhungBienDeVeOVuong()
+    {
+        var khung = new KhungBien(.34, .5, .27, .25);
+        _ai.KetQua = new KetQuaDocBienSo("29B198765", .96, false, [new("29B198765", .96, khung)], "XE_MAY");
+        var kq = await Vao().ThucHienAsync(new AnhCong(null, AnhJpg, "image/jpeg", 1, TuDong: true));
+        Assert.True(kq.ChoQua);
+        Assert.Equal(khung, kq.KhungBien);
+    }
+
     [Fact]
     public async Task Vao_BangAnh_DuoiNguong_KhongMo_TraUngVienDeAdminChon()
     {

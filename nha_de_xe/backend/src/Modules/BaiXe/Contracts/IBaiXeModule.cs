@@ -27,6 +27,11 @@ public record DuongDiDto(int KhuId, double TongMet, IReadOnlyList<DiemDuong> Die
 /// <summary>Các trạng thái ô (khớp CHECK CK_tto_trang_thai trong nha-xe.sql).</summary>
 public static class VaiTroCameraCongKhai
 {
+    /// <summary>Camera khu soi hướng xe đi vào khu.</summary>
+    public const string KhuVao = "KHU_VAO";
+    /// <summary>Camera khu soi hướng xe đi ra khỏi khu.</summary>
+    public const string KhuRa = "KHU_RA";
+    /// <summary>Kiểu cũ: một camera ở lối vào khu dùng chung hai hướng.</summary>
     public const string LoiVaoKhu = "LOI_VAO_KHU";
     public const string GiamSat = "GIAM_SAT";
 }

@@ -21,6 +21,11 @@ public static class DependencyInjection
         s.AddScoped<HetHanXacNhanUseCase>();
         s.AddScoped<LayManHinhCongUseCase>();
         s.AddScoped<LayRaVaoCuaToiUseCase>();
+        s.AddScoped<LayLuotCongUseCase>();
+        s.AddScoped<LayAnhDoiChungUseCase>();
+        // Barie mở theo sự kiện lượt gửi (TimXe cũng nghe 2 sự kiện này: một sự kiện, nhiều người nghe)
+        s.AddScoped<NhaXe.SharedKernel.INghe<Contracts.XeDaVao>, MoBarieKhiXeVao>();
+        s.AddScoped<NhaXe.SharedKernel.INghe<Contracts.XeDaRa>, MoBarieKhiXeRa>();
         return s;
     }
 }
