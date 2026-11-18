@@ -26,7 +26,9 @@ var jwt = new JwtOptions(
 builder.Services.AddSingleton<IClock, DongHoHeThong>();
 builder.Services.AddTaiKhoanModule(connStr, jwt, new SmtpOptions(
     cfg["Smtp:Host"] ?? "localhost", cfg.GetValue("Smtp:Port", 1025),
-    cfg["Smtp:From"] ?? "noreply@nhaxe.local", cfg.GetValue("Smtp:EnableSsl", false), cfg["Smtp:User"], cfg["Smtp:Password"]));
+    cfg["Smtp:From"] ?? "noreply@nhaxe.local", cfg.GetValue("Smtp:EnableSsl", false), cfg["Smtp:User"], cfg["Smtp:Password"]),
+    // Không còn tài khoản demo: admin đầu tiên tạo từ cấu hình khi CSDL chưa có admin nào (.env: ADMIN_*)
+    new AdminDauTienOptions(cfg["AdminDauTien:HoTen"], cfg["AdminDauTien:Sdt"], cfg["AdminDauTien:Email"], cfg["AdminDauTien:MatKhau"]));
 // AI biển số: Model A (YOLOv8n) + PaddleOCR chạy bằng ONNX Runtime ngay trong API .NET; file mô hình ở thư mục models
 builder.Services.AddAiBienSoModule(cfg["AiBienSo:ThuMucMoHinh"] ?? Path.Combine(AppContext.BaseDirectory, "models"));
 // Thư mục lưu ảnh giấy đăng ký: trong Docker là volume "uploads" dùng chung cho mọi container API
@@ -146,7 +148,6 @@ builder.Services.AddSwaggerGen(o =>
 
 var app = builder.Build();
 app.UseForwardedHeaders(); // đứng đầu: mọi middleware sau thấy IP thật của người dùng
-LuuTruTepTrenDia.ChepAnhMau(Path.Combine(AppContext.BaseDirectory, "anh-mau"), thuMucTep); // ảnh mẫu của dữ liệu demo
 
 // Gắn tên instance vào header để thấy NGINX chia tải giữa các container API (Buổi 7, 8).
 var instance = Environment.MachineName;

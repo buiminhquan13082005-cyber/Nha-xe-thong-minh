@@ -39,17 +39,4 @@ public sealed partial class LuuTruTepTrenDia : ILuuTruTep
         if (!p.StartsWith(_goc + Path.DirectorySeparatorChar)) throw new ArgumentException("Khoá tệp không hợp lệ.", nameof(khoa));
         return p;
     }
-
-    /// <summary>Chép ảnh mẫu của dữ liệu demo (giay-dk/1.png ...) vào kho nếu chưa có. Không ghi đè.</summary>
-    public static void ChepAnhMau(string thuMucMau, string thuMucGoc)
-    {
-        if (!Directory.Exists(thuMucMau)) return;
-        foreach (var tep in Directory.EnumerateFiles(thuMucMau, "*", SearchOption.AllDirectories))
-        {
-            var dich = Path.Combine(thuMucGoc, Path.GetRelativePath(thuMucMau, tep));
-            if (File.Exists(dich)) continue;
-            Directory.CreateDirectory(Path.GetDirectoryName(dich)!);
-            try { File.Copy(tep, dich); } catch (IOException) { /* container API kia vừa chép xong */ }
-        }
-    }
 }

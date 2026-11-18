@@ -9,6 +9,7 @@ public static class DependencyInjection
     {
         s.AddScoped<DangNhapUseCase>();
         s.AddScoped<DangKyUseCase>();
+        s.AddScoped<TaoAdminDauTienUseCase>();
         s.AddScoped<QuenMatKhauUseCase>();
         s.AddScoped<DatLaiMatKhauUseCase>();
         s.AddScoped<DoiMatKhauUseCase>();

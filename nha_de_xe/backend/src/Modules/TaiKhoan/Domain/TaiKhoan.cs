@@ -73,6 +73,10 @@ public class TaiKhoan
     public static TaiKhoan DangKy(string hoTen, string sdt, string email, string hash) =>
         new(0, hoTen, sdt, hash, Domain.VaiTro.User) { Email = email };
 
+    /// <summary>Admin đầu tiên của hệ thống, tạo từ cấu hình lúc khởi động (đăng ký công khai chỉ tạo được USER).</summary>
+    public static TaiKhoan TaoAdmin(string hoTen, string sdt, string email, string hash) =>
+        new(0, hoTen, sdt, hash, Domain.VaiTro.Admin) { Email = email };
+
     public void DongPhien() => PhienHienTai = null;
 
     public bool CoTheGuiMa(DateTime luc) => !BiKhoa && Email is not null &&

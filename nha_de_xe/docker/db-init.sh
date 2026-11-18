@@ -7,7 +7,7 @@ SQLCMD() { /opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa -P "$MSSQL_SA_PASSWO
 co_db() { SQLCMD -h -1 -Q "SET NOCOUNT ON; SELECT CASE WHEN DB_ID('NhaXeThongMinh') IS NOT NULL THEN 1 ELSE 0 END" 2>/dev/null | tr -d '[:space:]' | grep -qx 1; }
 
 if [ "$RESET_DB" = "1" ] || ! co_db; then
-  echo "Tạo database từ nha-xe.sql (dữ liệu demo được làm mới)..."
+  echo "Tạo database mới từ nha-xe.sql (không có tài khoản; admin đầu tiên do API tạo từ ADMIN_* trong .env)..."
   SQLCMD -i /scripts/nha-xe.sql > /tmp/init.log
 else
   echo "Database NhaXeThongMinh đã có, giữ nguyên dữ liệu."

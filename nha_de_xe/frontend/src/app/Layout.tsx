@@ -42,11 +42,11 @@ export function Layout() {
     <div className={`khung khung-doc ${moMenu ? 'mo-menu' : ''}`}>
       <header className="thanh-tren">
         <button className="nut-menu" aria-label="Mở menu" aria-expanded={moMenu} onClick={() => setMoMenu((m) => !m)}>☰</button>
-        <div className="thuong-hieu"><span className="logo-p" aria-hidden="true">P</span> Nhà xe thông minh</div>
+        <div className="thuong-hieu"><img className="logo-anh" src="/logo.png" alt="" /> Nhà xe thông minh</div>
       </header>
       {moMenu && <div className="man-che" onClick={() => setMoMenu(false)} />}
       <aside className="thanh-doc" aria-label="Menu chính">
-        <div className="thuong-hieu"><span className="logo-p" aria-hidden="true">P</span> Nhà xe thông minh</div>
+        <div className="thuong-hieu"><img className="logo-anh" src="/logo.png" alt="" /> Nhà xe thông minh</div>
         <nav>
           {nhom.map((n) => (
             <div key={n.ten ?? 'goc'} className="nhom-menu">

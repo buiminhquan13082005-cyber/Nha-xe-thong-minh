@@ -7,7 +7,8 @@ namespace NhaXe.Modules.TaiKhoan.Infrastructure;
 /// <summary>Điểm lắp ráp của module: nối interface với cài đặt cụ thể (DIP qua DI container).</summary>
 public static class DependencyInjection
 {
-    public static IServiceCollection AddTaiKhoanModule(this IServiceCollection s, string connectionString, JwtOptions jwt, SmtpOptions smtp)
+    public static IServiceCollection AddTaiKhoanModule(this IServiceCollection s, string connectionString, JwtOptions jwt, SmtpOptions smtp,
+        AdminDauTienOptions? adminDauTien = null)
     {
         s.AddDbContext<TaiKhoanDbContext>(o => o.UseSqlServer(connectionString));
         s.AddScoped<ITaiKhoanRepository, TaiKhoanRepository>();
@@ -17,6 +18,8 @@ public static class DependencyInjection
         s.AddSingleton(jwt);
         s.AddSingleton<ITokenService, JwtTokenService>();
         s.AddTaiKhoanApplication();
+        s.AddSingleton(adminDauTien ?? new AdminDauTienOptions(null, null, null, null));
+        s.AddHostedService<TaoAdminKhiKhoiDong>(); // CSDL chưa có admin thì tạo theo cấu hình
         return s;
     }
 }
