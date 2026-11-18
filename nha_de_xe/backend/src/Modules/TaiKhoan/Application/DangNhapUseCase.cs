@@ -29,7 +29,7 @@ public class DangNhapUseCase
         if (string.IsNullOrWhiteSpace(lenh.Sdt) || string.IsNullOrWhiteSpace(lenh.MatKhau))
             throw new LoiNghiepVu(LoaiLoi.DuLieuKhongHopLe, "THIEU_THONG_TIN", "Nhập số điện thoại và mật khẩu.");
 
-        var tk = await _repo.TimTheoSdtAsync(lenh.Sdt.Trim(), ct);
+        var tk = await _repo.TimTheoSdtAsync(ThongTinDangKy.BoKyTuPhanCach(lenh.Sdt), ct); // "0912 345 678", "+84912345678" đều tìm ra
         var bayGio = _clock.BayGio;
         // Cùng một thông báo cho "sai số điện thoại" và "sai mật khẩu" để không lộ số nào đã đăng ký.
         var saiDangNhap = Domain.TaiKhoan.LoiDangNhap();

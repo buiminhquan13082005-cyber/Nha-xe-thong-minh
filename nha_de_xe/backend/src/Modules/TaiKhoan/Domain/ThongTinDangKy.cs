@@ -7,9 +7,22 @@ namespace NhaXe.Modules.TaiKhoan.Domain;
 
 public static class ThongTinDangKy
 {
+    /// <summary>
+    /// Đưa SĐT người dùng gõ về dạng lưu trong DB: bỏ dấu cách, chấm, gạch, ngoặc ("0912 345 678", "0912.345.678")
+    /// và đổi đầu số quốc tế +84 / 84 thành 0. Không kiểm tra định dạng: đăng nhập dùng hàm này để tra cứu,
+    /// SĐT sai định dạng thì đơn giản là không tìm thấy (cùng thông báo với sai mật khẩu).
+    /// </summary>
+    public static string BoKyTuPhanCach(string? sdt)
+    {
+        var so = Regex.Replace(sdt ?? "", @"[\s.\-()]", "");
+        if (so.StartsWith("+84")) so = "0" + so[3..];
+        else if (so.StartsWith("84") && so.Length == 11) so = "0" + so[2..];
+        return so;
+    }
+
     public static string ChuanHoaSdt(string? sdt)
     {
-        var value = sdt?.Trim() ?? "";
+        var value = BoKyTuPhanCach(sdt);
         if (!Regex.IsMatch(value, @"\A0[0-9]{9}\z"))
             throw new LoiNghiepVu(LoaiLoi.DuLieuKhongHopLe, "SDT_SAI", "Số điện thoại phải gồm 10 chữ số, bắt đầu bằng 0.");
         return value;

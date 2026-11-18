@@ -11,7 +11,8 @@
      3. Trigger chặn gói chồng ngày trên cùng một xe
      4. Hàm quyền dùng xe, view chỗ còn bán, view vị trí xe
      5. Thủ tục mua gói có khoá (chống bán quá sức chứa)
-     6. Dữ liệu mẫu nhỏ để demo
+     6. Dữ liệu khởi tạo: cấu hình, loại xe, gói giá, sơ đồ bãi. KHÔNG có tài khoản hay xe nào:
+        người dùng tự đăng ký; admin đầu tiên do API tạo từ biến môi trường ADMIN_* (.env).
 
    Quy ước:
      - Thời gian lưu giờ Việt Nam (SYSDATETIME() của máy chủ), DATETIME2(0).
@@ -980,10 +981,11 @@ END
 GO
 
 /* =====================================================================
-   PHẦN 8. DỮ LIỆU MẪU
-   Mọi thời gian tính tương đối theo lúc chạy script, để demo chạy được bất kỳ ngày nào.
-   Giá gói là SỐ MẪU, chưa phải bảng giá đã chốt.
-   Mật khẩu demo của MỌI tài khoản: 123456 (bcrypt thật, backend kiểm tra bằng BCrypt.Net).
+   PHẦN 8. DỮ LIỆU KHỞI TẠO
+   Chỉ có dữ liệu để bãi xe chạy được: cấu hình, loại xe + sức chứa, gói giá, khu / ô / camera, lối đi.
+   KHÔNG có tài khoản, nhóm, xe, gói đã mua, lượt gửi hay thông báo mẫu: tất cả do người dùng thật tạo ra.
+   Admin đầu tiên: API tự tạo lúc khởi động nếu bảng tai_khoan chưa có ADMIN (biến AdminDauTien__*, file .env: ADMIN_*).
+   Giá gói là SỐ MẪU, chưa phải bảng giá đã chốt (Admin đổi được ở trang Gói và giá).
    ===================================================================== */
 
 DECLARE @now DATETIME2(0) = SYSDATETIME();
@@ -997,30 +999,6 @@ INSERT dbo.cau_hinh (khoa, gia_tri, mo_ta) VALUES
  ('nhac_truoc_het_han_gio',        N'72',   N'Nhắc gia hạn trước khi gói hết hạn'),
  ('nguong_tin_cay_bien_so',        N'0.85', N'Dưới ngưỡng thì chuyển Admin xác nhận biển số'),
  ('so_xe_cho_duyet_toi_da',        N'5',    N'Mỗi tài khoản tối đa bấy nhiêu xe CHỜ DUYỆT cùng lúc (xe đã duyệt/từ chối không tính)');
-
--- Tài khoản (1 = Admin; 2 bố, 3 con cùng nhóm; 4 người ngoài nhóm; 5 có 3 ô tô chưa mua gói để demo "Hết chỗ")
-SET IDENTITY_INSERT dbo.tai_khoan ON;
-INSERT dbo.tai_khoan (id, ho_ten, sdt, email, mat_khau_hash, vai_tro, phien_hien_tai, dang_nhap_luc) VALUES
- (1, N'Quản trị viên',     '0900000001', 'admin@nhaxe.local', '$2b$10$335ro6SowlQwMOxB4/xUYOIMxjLQq6AygovS8TnZMA8LFnH.2qpuy', 'ADMIN', NULL, NULL),
- (2, N'Nguyễn Văn An',     '0900000002', 'an@example.com',    '$2b$10$335ro6SowlQwMOxB4/xUYOIMxjLQq6AygovS8TnZMA8LFnH.2qpuy', 'USER', 'sess-an-01',   DATEADD(DAY, -1, @now)),
- (3, N'Nguyễn Minh Bình',  '0900000003', 'binh@example.com',  '$2b$10$335ro6SowlQwMOxB4/xUYOIMxjLQq6AygovS8TnZMA8LFnH.2qpuy', 'USER', 'sess-binh-01', DATEADD(HOUR, -5, @now)),
- (4, N'Trần Thị Cúc',      '0900000004', NULL,                '$2b$10$335ro6SowlQwMOxB4/xUYOIMxjLQq6AygovS8TnZMA8LFnH.2qpuy', 'USER', 'sess-cuc-01',  DATEADD(DAY, -3, @now)),
- (5, N'Lê Văn Dũng',       '0900000005', 'dung@example.com',  '$2b$10$335ro6SowlQwMOxB4/xUYOIMxjLQq6AygovS8TnZMA8LFnH.2qpuy', 'USER', NULL, NULL);
-SET IDENTITY_INSERT dbo.tai_khoan OFF;
-
--- Nhóm gia đình: An là chủ nhóm, Bình đã được duyệt vào
-SET IDENTITY_INSERT dbo.nhom ON;
-INSERT dbo.nhom (id, chu_nhom_id, ten, ma_moi, ma_het_han_luc, tao_luc) VALUES
- (1, 2, N'Gia đình anh An', 'AN7K2Q', DATEADD(DAY, 7, @now), DATEADD(DAY, -10, @now));
-SET IDENTITY_INSERT dbo.nhom OFF;
-
-INSERT dbo.thanh_vien_nhom (nhom_id, tai_khoan_id, vai_tro, tham_gia_luc) VALUES
- (1, 2, 'CHU',        DATEADD(DAY, -10, @now)),
- (1, 3, 'THANH_VIEN', DATEADD(DAY, -9,  @now));
-
-INSERT dbo.yeu_cau_tham_gia (nhom_id, tai_khoan_id, trang_thai, tao_luc, xu_ly_luc) VALUES
- (1, 3, 'DONG_Y',    DATEADD(DAY, -9, @now), DATEADD(DAY, -9, @now)),
- (1, 4, 'CHO_DUYET', DATEADD(HOUR, -2, @now), NULL);
 
 -- Loại xe: sức chứa ô tô nhỏ để demo "hết chỗ"
 SET IDENTITY_INSERT dbo.loai_xe ON;
@@ -1039,34 +1017,6 @@ INSERT dbo.goi_cho (id, loai_xe_id, ten, so_ngay, gia) VALUES
  (5, 2, N'1 tháng', 30,  100000),
  (6, 2, N'1 năm',   365, 1000000);
 SET IDENTITY_INSERT dbo.goi_cho OFF;
-
--- Xe
-SET IDENTITY_INSERT dbo.xe ON;
-INSERT dbo.xe (id, tai_khoan_id, loai_xe_id, bien_so, anh_giay_dang_ky, trang_thai_duyet, chia_se_nhom) VALUES
- (1, 2, 1, '30A12345',  'giay-dk/1.png', 'DA_DUYET',  1),  -- ô tô của An, chia sẻ nhóm
- (2, 2, 2, '29B112345', 'giay-dk/2.png', 'DA_DUYET',  0),  -- xe máy của An, không chia sẻ
- (3, 3, 2, '29X267890', 'giay-dk/3.png', 'DA_DUYET',  1),  -- xe máy của Bình, chia sẻ nhóm
- (4, 4, 1, '51G67890',  'giay-dk/4.png', 'DA_DUYET',  0),  -- ô tô của Cúc (gói đã hết, xe còn trong bãi)
- (5, 4, 2, '59C112233', 'giay-dk/5.png', 'CHO_DUYET', 0),   -- xe máy của Cúc, chờ duyệt
- (6, 5, 1, '30F11111',  'giay-dk/6.png', 'DA_DUYET',  0),  -- 3 ô tô của Dũng, chưa có gói:
- (7, 5, 1, '30F22222',  'giay-dk/7.png', 'DA_DUYET',  0),  --   còn 2 chỗ ô tô nên mua được 2 xe,
- (8, 5, 1, '30F33333',  'giay-dk/8.png', 'DA_DUYET',  0);  --   xe thứ 3 bị báo "Hết chỗ"
-SET IDENTITY_INSERT dbo.xe OFF;
-
--- Đăng ký gói (không có cột ô đỗ: chỉ giữ suất)
-SET IDENTITY_INSERT dbo.dang_ky_cho ON;
-INSERT dbo.dang_ky_cho (id, xe_id, goi_cho_id, ngay_bat_dau, ngay_ket_thuc, so_tien, trang_thai, mua_luc, da_nhac_72h) VALUES
- (1, 1, 2, DATEADD(DAY, -10, @now), DATEADD(DAY, 20, @now),  1200000, 'CON_HAN', DATEADD(DAY, -10, @now), 0),
- (2, 2, 4, DATEADD(DAY, -5, @now),  DATEADD(DAY, 2, @now),   30000,   'CON_HAN', DATEADD(DAY, -5, @now),  1),  -- còn < 72h, đã nhắc
- (3, 3, 5, DATEADD(DAY, -3, @now),  DATEADD(DAY, 27, @now),  100000,  'CON_HAN', DATEADD(DAY, -3, @now),  0),
- (4, 4, 1, DATEADD(DAY, -9, @now),  DATEADD(DAY, -2, @now),  300000,  'HET_HAN', DATEADD(DAY, -9, @now),  1);  -- hết hạn 2 ngày trước
-SET IDENTITY_INSERT dbo.dang_ky_cho OFF;
-
-INSERT dbo.thanh_toan (tai_khoan_id, loai, dang_ky_cho_id, so_tien, trang_thai, thoi_gian) VALUES
- (2, 'MUA_GOI', 1, 1200000, 'THANH_CONG', DATEADD(DAY, -10, @now)),
- (2, 'MUA_GOI', 2, 30000,   'THANH_CONG', DATEADD(DAY, -5,  @now)),
- (3, 'MUA_GOI', 3, 100000,  'THANH_CONG', DATEADD(DAY, -3,  @now)),
- (4, 'MUA_GOI', 4, 300000,  'THANH_CONG', DATEADD(DAY, -9,  @now));
 
 -- Sơ đồ bãi: khu A, B cho ô tô (định vị tới ô), khu C cho xe máy (chỉ tới khu)
 SET IDENTITY_INSERT dbo.khu_vuc ON;
@@ -1110,104 +1060,29 @@ SET IDENTITY_INSERT dbo.nut_duong_di OFF;
 INSERT dbo.canh_duong_di (nut_a_id, nut_b_id, do_dai) VALUES
  (1, 3, 15.0), (1, 4, 15.0), (2, 3, 15.0), (2, 4, 15.0), (2, 5, 5.0), (2, 6, 14.0);
 
--- Lượt gửi
-SET IDENTITY_INSERT dbo.luot_gui ON;
-INSERT dbo.luot_gui (id, xe_id, thoi_gian_vao, thoi_gian_ra, anh_vao, anh_ra, do_tin_cay_vao, do_tin_cay_ra, trang_thai,
-                     vi_tri_khu_id, vi_tri_o_id, vi_tri_luc, vi_tri_nguon, so_lan_quet_khong_thay) VALUES
- -- xe máy An: lượt cũ đã ra, Bình xác nhận hộ
- (1, 2, DATEADD(DAY, -1, @now), DATEADD(HOUR, -20, @now), '/anh/vao/1.jpg', '/anh/ra/1.jpg', 0.9600, 0.9400, 'DA_RA',
-     NULL, NULL, NULL, NULL, 0),
- -- ô tô An: đang gửi, định vị tới ô B04
- (2, 1, DATEADD(MINUTE, -70, @now), NULL, '/anh/vao/2.jpg', NULL, 0.9800, NULL, 'DANG_GUI',
-     2, 8, DATEADD(MINUTE, -4, @now), 'QUET', 0),
- -- xe máy Bình: đang gửi, chỉ biết mức khu C
- (3, 3, DATEADD(MINUTE, -40, @now), NULL, '/anh/vao/3.jpg', NULL, 0.9100, NULL, 'DANG_GUI',
-     3, NULL, DATEADD(MINUTE, -4, @now), 'QUET', 0),
- -- ô tô Cúc: vào từ 4 ngày trước, gói hết hạn 2 ngày trước, 3 lần quét không thấy
- (4, 4, DATEADD(DAY, -4, @now), NULL, '/anh/vao/4.jpg', NULL, 0.9500, NULL, 'DANG_GUI',
-     NULL, NULL, NULL, NULL, 3);
-SET IDENTITY_INSERT dbo.luot_gui OFF;
-
--- lượt 1 đã ra: Bình (cùng nhóm) và Admin cùng xác nhận
-INSERT dbo.yeu_cau_xac_nhan (luot_gui_id, anh_cong_ra, tao_luc, het_han_luc, ket_qua,
-                             chu_xe_dong_y, chu_xe_tra_loi_id, chu_xe_tra_loi_luc, quan_ly_dong_y, quan_ly_id, quan_ly_tra_loi_luc,
-                             ly_do, ket_thuc_luc) VALUES
- (1, '/anh/ra/1.jpg', DATEADD(SECOND, -20, DATEADD(HOUR, -20, @now)), DATEADD(SECOND, 40, DATEADD(HOUR, -20, @now)), 'DONG_Y',
-     1, 3, DATEADD(SECOND, -8, DATEADD(HOUR, -20, @now)), 1, 1, DATEADD(SECOND, -5, DATEADD(HOUR, -20, @now)),
-     NULL, DATEADD(SECOND, -5, DATEADD(HOUR, -20, @now)));
-
--- GoiCho: bản sao xe đang trong bãi, khớp các lượt gửi đang mở ở trên
-INSERT dbo.xe_trong_bai (xe_id, luot_gui_id, vao_luc)
-SELECT xe_id, id, thoi_gian_vao FROM dbo.luot_gui WHERE thoi_gian_ra IS NULL;
-
--- BaiXe: trạng thái ô (B04 có xe An đang đỗ)
+-- BaiXe: bãi mới, mọi ô đều trống
 INSERT dbo.trang_thai_o (o_do_id, trang_thai, nguon, cap_nhat_luc)
-SELECT id, CASE WHEN id = 8 THEN 'CO_XE' ELSE 'TRONG' END, 'ADMIN', DATEADD(MINUTE, -4, @now) FROM dbo.o_do;
-
-INSERT dbo.su_kien_cong (loai, bien_so_doc_duoc, do_tin_cay, luot_gui_id, ket_qua, ly_do, admin_xu_ly_id, thoi_gian) VALUES
- ('VAO', '29B112345', 0.9600, 1,    'CHO_QUA', NULL, NULL, DATEADD(DAY, -1, @now)),
- ('RA',  '29B112345', 0.9400, 1,    'CHO_QUA', N'Người dùng xe và quản lý đã xác nhận', 1, DATEADD(HOUR, -20, @now)),
- ('VAO', '30A12345',  0.9800, 2,    'CHO_QUA', NULL, NULL, DATEADD(MINUTE, -70, @now)),
- ('VAO', '29X267890', 0.7200, 3,    'CHO_QUA', N'AI đọc 29X26789O, Admin sửa thành 29X267890', 1, DATEADD(MINUTE, -40, @now)),
- ('VAO', '43A99999',  0.9700, NULL, 'TU_CHOI', N'Xe chưa đăng ký', NULL, DATEADD(MINUTE, -30, @now));
-
--- Lần quét định kỳ gần nhất
-SET IDENTITY_INSERT dbo.lan_quet ON;
-INSERT dbo.lan_quet (id, loai, bat_dau_luc, ket_thuc_luc, so_camera, so_bien_doc_duoc, so_xe_dinh_vi, trang_thai) VALUES
- (1, 'DINH_KY', DATEADD(MINUTE, -9, @now), DATEADD(SECOND, 25, DATEADD(MINUTE, -9, @now)), 4, 1, 1, 'HOAN_THANH'),
- (2, 'DINH_KY', DATEADD(MINUTE, -4, @now), DATEADD(SECOND, 28, DATEADD(MINUTE, -4, @now)), 4, 3, 2, 'HOAN_THANH');
-SET IDENTITY_INSERT dbo.lan_quet OFF;
-
-INSERT dbo.vi_tri_xe (luot_gui_id, lan_quet_id, camera_id, khu_vuc_id, o_do_id, bien_so_doc_duoc, do_tin_cay, anh_cat, nguon, thay_luc) VALUES
- (2, 1, 2, 2, 8,    '30A12345',  0.9300, '/anh/cat/q1-cam2-1.jpg', 'QUET', DATEADD(MINUTE, -9, @now)),
- (2, 2, 2, 2, 8,    '30A12345',  0.9500, '/anh/cat/q2-cam2-1.jpg', 'QUET', DATEADD(MINUTE, -4, @now)),
- (3, 2, 4, 3, NULL, '29X26789',  0.8100, '/anh/cat/q2-cam4-1.jpg', 'QUET', DATEADD(MINUTE, -4, @now));  -- đọc thiếu 1 ký tự, khớp gần đúng (Levenshtein 1)
-
-INSERT dbo.thong_bao (tai_khoan_id, loai, noi_dung, gui_luc, da_doc) VALUES
- (2, 'RA',          N'Xe 29B112345 đã ra bãi, Nguyễn Minh Bình xác nhận.', DATEADD(HOUR, -20, @now), 1),
- (3, 'RA',          N'Xe 29B112345 đã ra bãi, bạn đã xác nhận.',          DATEADD(HOUR, -20, @now), 1),
- (2, 'SAP_HET_HAN', N'Gói chỗ của xe 29B112345 còn dưới 72 giờ, hãy gia hạn.', DATEADD(HOUR, -1, @now), 0),
- (2, 'VAO',         N'Xe 30A12345 đã vào bãi.',                            DATEADD(MINUTE, -70, @now), 1),
- (3, 'VAO',         N'Xe 30A12345 (chia sẻ trong nhóm) đã vào bãi.',       DATEADD(MINUTE, -70, @now), 0),
- (4, 'HET_HAN',     N'Gói chỗ của xe 51G67890 đã hết hạn. Xe còn trong bãi sẽ tính phí quá hạn theo ngày.', DATEADD(DAY, -2, @now), 0);
+SELECT id, 'TRONG', 'ADMIN', @now FROM dbo.o_do;
 GO
 
 /* =====================================================================
    PHẦN 9. TRUY VẤN KIỂM TRA (bôi đen từng câu rồi F5)
+   CSDL mới không có tài khoản / xe nào: đăng ký và thêm xe trên giao diện trước, rồi thay <id> bên dưới.
    ===================================================================== */
 /*
--- Chỗ còn bán: ô tô 4 − 1 (xe An giữ suất) − 1 (xe Cúc quá hạn còn trong bãi) = 2
+-- Tài khoản đã đăng ký (mật khẩu chỉ lưu bcrypt)
+SELECT id, ho_ten, sdt, email, vai_tro, trang_thai, tao_luc, dang_nhap_luc FROM dbo.tai_khoan ORDER BY id;
+
+-- Chỗ còn bán theo loại xe
 SELECT * FROM dbo.v_cho_con_ban;
 
--- Bình (id 3) được dùng: xe máy của mình + ô tô An đã chia sẻ; KHÔNG thấy xe máy không chia sẻ của An
-SELECT q.*, x.bien_so FROM dbo.fn_xe_duoc_dung(3) q JOIN dbo.xe x ON x.id = q.xe_id;
-
--- Tìm xe: Bình tìm ô tô của An (có quyền)
-SELECT v.* FROM dbo.v_vi_tri_xe_hien_tai v
-WHERE v.xe_id IN (SELECT xe_id FROM dbo.fn_xe_duoc_dung(3));
-
--- Cúc (id 4) không có quyền với xe của An: kết quả rỗng
-SELECT v.* FROM dbo.v_vi_tri_xe_hien_tai v
-WHERE v.xe_id = 1 AND v.xe_id IN (SELECT xe_id FROM dbo.fn_xe_duoc_dung(4));
+-- Xe một tài khoản được dùng (của mình + xe được chia sẻ trong nhóm)
+SELECT q.*, x.bien_so FROM dbo.fn_xe_duoc_dung(<id tài khoản>) q JOIN dbo.xe x ON x.id = q.xe_id;
 
 -- Đối soát: xe đang gửi nhưng chưa định vị được
 SELECT * FROM dbo.v_vi_tri_xe_hien_tai WHERE tinh_trang = N'Chưa định vị';
 
--- Gia hạn: An mua thêm 1 tuần cho xe máy (nối tiếp sau gói đang còn, không tốn suất mới)
-DECLARE @id INT; EXEC dbo.sp_mua_goi @tai_khoan_id = 2, @xe_id = 2, @goi_cho_id = 4, @dang_ky_cho_id = @id OUTPUT;
-SELECT * FROM dbo.dang_ky_cho WHERE xe_id = 2;
-
--- Cúc mua gói mới khi xe đang quá hạn trong bãi: bị chặn, phải trả phí trước
-SELECT * FROM dbo.fn_phi_qua_han(4);                 -- 2 ngày, 100.000 đ
-EXEC dbo.sp_mua_goi @tai_khoan_id = 4, @xe_id = 4, @goi_cho_id = 1;      -- lỗi 50005
-EXEC dbo.sp_thanh_toan_phi_qua_han @tai_khoan_id = 4, @luot_gui_id = 4;
-SELECT * FROM dbo.fn_phi_qua_han(4);                 -- còn nợ 0
-EXEC dbo.sp_mua_goi @tai_khoan_id = 4, @xe_id = 4, @goi_cho_id = 1;      -- thành công
-
--- Huỷ gói gia hạn (chưa bắt đầu) của xe máy An, hoàn 30.000 đ
--- EXEC dbo.sp_huy_goi @tai_khoan_id = 2, @dang_ky_cho_id = <id gói vừa gia hạn>, @so_tien_hoan = 30000;
-
--- Admin gỡ ô tô 30F11111 của Dũng (không trong bãi)
-EXEC dbo.sp_go_xe @admin_id = 1, @xe_id = 6, @ly_do = N'Dùng biển số giả';
-SELECT id, bien_so, trang_thai_duyet, ly_do_go FROM dbo.xe WHERE id = 6;
+-- Mua gói bằng thủ tục (giống API làm)
+DECLARE @id INT; EXEC dbo.sp_mua_goi @tai_khoan_id = <id tài khoản>, @xe_id = <id xe>, @goi_cho_id = 4, @dang_ky_cho_id = @id OUTPUT;
+SELECT * FROM dbo.dang_ky_cho WHERE id = @id;
 */
