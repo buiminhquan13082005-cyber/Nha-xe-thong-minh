@@ -12,8 +12,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Ảnh mẫu giấy đăng ký của dữ liệu demo: chép vào kho ảnh khi API khởi động (nếu chưa có) -->
-    <None Include="anh-mau\**" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <!-- Mô hình AI đã train (source/models): Model A YOLOv8n + PaddleOCR rec, chép cạnh NhaXe.Api.dll vào thư mục models -->
     <None Include="..\..\..\models\*" LinkBase="models" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>

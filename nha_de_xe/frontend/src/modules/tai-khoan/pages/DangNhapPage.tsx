@@ -4,14 +4,6 @@ import { ThongBao } from '@/shared/ui/ui';
 import { useApp } from '@/app/AppContext';
 import { KhungXacThuc } from '../components/KhungXacThuc';
 
-// Tài khoản mẫu trong database (mật khẩu đều là 123456), hiện ra để demo nhanh.
-const TAI_KHOAN_MAU = [
-  { sdt: '0900000002', ten: 'Nguyễn Văn An', ghiChu: 'chủ nhóm, có xe máy' },
-  { sdt: '0900000003', ten: 'Nguyễn Minh Bình', ghiChu: 'thành viên nhóm của An' },
-  { sdt: '0900000004', ten: 'Trần Thị Cúc', ghiChu: 'xe quá hạn còn trong bãi' },
-  { sdt: '0900000001', ten: 'Quản trị viên', ghiChu: 'Admin: cổng, khu, đối soát' },
-];
-
 export function DangNhapPage() {
   const { phien, dangNhap, thongBaoPhien } = useApp();
   const nav = useNavigate();
@@ -38,19 +30,6 @@ export function DangNhapPage() {
       chan={<>
         <p className="xt-mo-ta">Chưa có tài khoản? <Link to="/dang-ky" className="xt-lien-ket">Tạo tài khoản</Link></p>
         <p className="xt-ghi-chu">Mỗi tài khoản đăng nhập trên một điện thoại.</p>
-        <details className="xt-demo">
-          <summary>Tài khoản demo (mật khẩu 123456)</summary>
-          <ul>
-            {TAI_KHOAN_MAU.map((t) => (
-              <li key={t.sdt}>
-                <button type="button" className="lien-ket" onClick={() => { setSdt(t.sdt); setMatKhau('123456'); }}>
-                  <strong>{t.ten}</strong> · {t.sdt}
-                </button>
-                <div className="mo">{t.ghiChu}</div>
-              </li>
-            ))}
-          </ul>
-        </details>
       </>}>
       <form className="xt-form" onSubmit={gui}>
         {thongBaoPhien && <ThongBao loai="canh-bao">{thongBaoPhien}</ThongBao>}

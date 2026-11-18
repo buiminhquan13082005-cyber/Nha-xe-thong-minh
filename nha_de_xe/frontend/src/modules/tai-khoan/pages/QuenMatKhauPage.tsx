@@ -27,7 +27,7 @@ export function QuenMatKhauPage() {
   return <div className="trang-dang-nhap"><div className="the form dang-nhap">
     <h1>Khôi phục mật khẩu</h1>
     <form className="form" onSubmit={e => void gui(e, false)}>
-      <label>Số điện thoại<input required pattern="0[0-9]{9}" inputMode="tel" autoComplete="tel" value={sdt} onChange={e => setSdt(e.target.value)} /></label>
+      <label>Số điện thoại<input required inputMode="tel" autoComplete="tel" value={sdt} onChange={e => setSdt(e.target.value)} /></label>
       <button className="nut nut-phu" disabled={ban}>Gửi mã qua email</button>
     </form>
     <form className="form" onSubmit={e => void gui(e, true)}>

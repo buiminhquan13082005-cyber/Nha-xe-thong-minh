@@ -38,7 +38,7 @@ export function Layout() {
   return (
     <div className="khung">
       <header className="dau-trang">
-        <div className="thuong-hieu"><span className="logo-p" aria-hidden="true">P</span> Nhà xe thông minh</div>
+        <div className="thuong-hieu"><img className="logo-anh" src="/logo.png" alt="" /> Nhà xe thông minh</div>
         <nav>
           {laAdmin ? (
             <>

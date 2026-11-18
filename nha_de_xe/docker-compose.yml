@@ -21,6 +21,7 @@ services:
       timeout: 5s
       retries: 30
       start_period: 15s
+    restart: unless-stopped                     # VPS khởi động lại thì SQL Server tự chạy lại
 
   db-init:
     image: mcr.microsoft.com/mssql/server:2022-latest
@@ -45,6 +46,11 @@ services:
       # Buổi 11: bí mật lấy từ .env, không nằm trong mã nguồn
       ConnectionStrings__NhaXe: "Server=sqlserver,1433;Database=NhaXeThongMinh;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True"
       Jwt__Key: ${JWT_KEY}
+      # Admin đầu tiên (chỉ tạo khi CSDL chưa có ADMIN nào), xem .env.example
+      AdminDauTien__HoTen: "${ADMIN_HO_TEN:-Quản trị viên}"
+      AdminDauTien__Sdt: ${ADMIN_SDT:-}
+      AdminDauTien__Email: ${ADMIN_EMAIL:-}
+      AdminDauTien__MatKhau: ${ADMIN_MAT_KHAU:-}
       Swagger: "true"
       TZ: Asia/Ho_Chi_Minh                      # DateTime.Now cùng múi giờ với SQL Server
     volumes:
@@ -62,7 +68,7 @@ services:
       context: .
       dockerfile: docker/web.Dockerfile
     ports:
-      - "${WEB_PORT:-8080}:8080"
+      - "127.0.0.1:${WEB_PORT:-8080}:8080"      # chỉ mở trong máy; ra Internet đi qua NGINX của VPS (HTTPS)
     depends_on:
       - api
     restart: unless-stopped
