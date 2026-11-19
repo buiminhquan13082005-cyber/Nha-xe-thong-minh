@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from './AppContext';
 import { useNgheThongBao } from '@/shared/realtime/useNgheThongBao';
+import { DieuHuongToanCuc } from '@/modules/tim-xe';
+import { nhanHanhDong, useMoThongBao } from '@/modules/thong-bao';
+import type { SuKienThoiGianThuc } from '@/shared/realtime/thoiGianThuc';
 
 export function Layout() {
   const { phien, dangXuat, services } = useApp();
@@ -9,13 +12,15 @@ export function Layout() {
   const laAdmin = phien?.vaiTro === 'ADMIN';
   const viTri = useLocation();
   const [chuaDoc, setChuaDoc] = useState(0);
+  const [xeChoDuyet, setXeChoDuyet] = useState(0);
   const [loiDangXuat, setLoiDangXuat] = useState('');
   const [dangThoat, setDangThoat] = useState(false);
-  const [moi, setMoi] = useState<{ noiDung: string; khoa: number } | null>(null);
+  const [moi, setMoi] = useState<(SuKienThoiGianThuc & { khoa: number }) | null>(null);
+  const moThongBao = useMoThongBao();
   const [lanTai, setLanTai] = useState(0);
   const [moMenu, setMoMenu] = useState(false);
   // Thông báo tới qua SignalR: hiện thẻ nổi vài giây và tải lại số chưa đọc
-  useNgheThongBao((s) => { setMoi({ noiDung: s.noiDung, khoa: Date.now() }); setLanTai((n) => n + 1); });
+  useNgheThongBao((s) => { setMoi({ ...s, khoa: Date.now() }); setLanTai((n) => n + 1); });
   useEffect(() => {
     if (!moi) return;
     const id = window.setTimeout(() => setMoi(null), 6_000);
@@ -36,6 +41,16 @@ export function Layout() {
     return () => window.clearInterval(id);
   }, [laAdmin, services, viTri.pathname, lanTai]);
 
+  // Admin: số xe chờ duyệt cho badge "Quản lý xe" (đổi trang, có thông báo mới, và mỗi 30 giây)
+  useEffect(() => {
+    if (!laAdmin) return;
+    const tai = () => services.adminGoiCho.demXeChoDuyet().then(setXeChoDuyet).catch(() => { /* lỗi mạng: giữ số cũ */ });
+    void tai();
+    const id = window.setInterval(() => { if (!document.hidden) void tai(); }, 30_000);
+    return () => window.clearInterval(id);
+  }, [laAdmin, services, viTri.pathname, lanTai]);
+  const soDem: Record<string, number> = { XE_CHO_DUYET: xeChoDuyet };
+
   const nhom = laAdmin ? NHOM_ADMIN : NHOM_KHACH;
   const linkTB = laAdmin ? '/admin/thong-bao' : '/thong-bao';
   return (
@@ -54,6 +69,9 @@ export function Layout() {
               {n.muc.map((m) => (
                 <NavLink key={m.to} to={m.to} end={m.end} onClick={() => setMoMenu(false)}>
                   <span className="bieu-tuong" aria-hidden="true">{m.icon}</span>{m.ten}
+                  {m.dem && soDem[m.dem] > 0 && (
+                    <span className="so-dem" title={`${soDem[m.dem]} xe chờ duyệt`} aria-label={`${soDem[m.dem]} xe chờ duyệt`}>{soDem[m.dem]}</span>
+                  )}
                 </NavLink>
               ))}
             </div>
@@ -72,17 +90,25 @@ export function Layout() {
         </div>
       </aside>
       <main className="noi-dung"><Outlet /></main>
+      {/* Người dùng: xe vừa qua cổng thì màn hình chỉ đường tự bật ở bất kỳ trang nào */}
+      {!laAdmin && <DieuHuongToanCuc />}
       {moi && (
-        <div key={moi.khoa} className="the-noi" role="status" onClick={() => { setMoi(null); nav(laAdmin ? '/admin/thong-bao' : '/thong-bao'); }}>
+        // Bấm thẻ nổi: cùng chỗ đi tới như bấm thông báo trong hộp thư; không có trang đích thì mở hộp thư
+        <div key={moi.khoa} className="the-noi" role="status" onClick={async () => {
+          const s = moi; setMoi(null);
+          if (!(await moThongBao({ ...s, daDoc: false }))) nav(laAdmin ? '/admin/thong-bao' : '/thong-bao');
+        }}>
           <span className="nhan-nho">Thông báo mới</span>
           <span>{moi.noiDung}</span>
+          {nhanHanhDong(moi, laAdmin) && <span className="tb-viec">{nhanHanhDong(moi, laAdmin)} →</span>}
         </div>
       )}
     </div>
   );
 }
 
-interface MucMenu { to: string; ten: string; icon: string; end?: boolean }
+/** dem: khoá số đếm hiện thành badge cạnh mục menu (ví dụ số xe chờ duyệt). */
+interface MucMenu { to: string; ten: string; icon: string; end?: boolean; dem?: 'XE_CHO_DUYET' }
 interface NhomMenu { ten: string | null; muc: MucMenu[] }
 
 /** Menu dọc. "Hành trình xe" gộp cổng vào, cổng ra và camera khu (module 5 + 8). */
@@ -98,11 +124,10 @@ const NHOM_ADMIN: NhomMenu[] = [
     { to: '/admin/bai-xe', ten: 'Xe trong bãi', icon: '▦' },
   ] },
   { ten: 'Xe & gói', muc: [
-    { to: '/admin/duyet-xe', ten: 'Quản lý xe', icon: '🛵' },
+    { to: '/admin/duyet-xe', ten: 'Quản lý xe', icon: '🛵', dem: 'XE_CHO_DUYET' },
     { to: '/admin/goi-gia', ten: 'Gói & giá', icon: '₫' },
   ] },
   { ten: 'Hệ thống', muc: [
-    { to: '/admin/ai-bien-so', ten: 'Đọc biển số (AI)', icon: '⌕' },
     { to: '/admin/tai-khoan', ten: 'Tài khoản', icon: '👤' },
     { to: '/admin/bao-cao', ten: 'Báo cáo', icon: '📊' },
   ] },
