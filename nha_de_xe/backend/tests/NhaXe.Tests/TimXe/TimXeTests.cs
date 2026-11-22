@@ -20,6 +20,10 @@ public class FakeBaiXeModule : IBaiXeModule
     public Task<CameraThongTin?> LayCameraAsync(int cameraId, CancellationToken ct = default) => Task.FromResult(Camera.FirstOrDefault(c => c.Id == cameraId));
     public Task<DuongDiDto?> TimDuongAsync(int khuId, CancellationToken ct = default) =>
         Task.FromResult<DuongDiDto?>(new DuongDiDto(khuId, 10, [new(1, "Lối vào", 0, 0), new(9, "Đầu khu", 10, 0)]));
+    /// <summary>false: giả lập sơ đồ chưa có Cổng ra Y.</summary>
+    public bool CoDuongRa { get; set; } = true;
+    public Task<DuongDiDto?> TimDuongRaAsync(int khuId, CancellationToken ct = default) =>
+        Task.FromResult<DuongDiDto?>(CoDuongRa ? new DuongDiDto(khuId, 30, [new(9, "Đầu khu", 10, 0), new(20, "Cổng ra Y", 40, 0)]) : null);
 }
 
 public class FakeTimXeRepository : ITimXeRepository

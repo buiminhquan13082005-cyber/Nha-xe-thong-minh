@@ -21,6 +21,24 @@ public class XeRepository : IXeRepository
 
     public void Them(Xe xe) => _db.Xes.Add(xe);
     public Task LuuAsync(CancellationToken ct) => _db.SaveChangesAsync(ct);
+
+    public async Task<bool> ThuXoaAsync(Xe xe, CancellationToken ct)
+    {
+        // Không tự đọc bảng của module khác (luot_gui, xe_trong_bai, di_sai_khu): để khoá ngoại của DB quyết định.
+        // DELETE chạy riêng (ExecuteDelete) nên bị chặn cũng không làm hỏng các thay đổi khác đã lưu.
+        try { await _db.Xes.Where(x => x.Id == xe.Id).ExecuteDeleteAsync(ct); }
+        catch (Exception e) when (LaLoiKhoaNgoai(e)) { return false; }
+        _db.Entry(xe).State = EntityState.Detached;
+        return true;
+    }
+
+    /// <summary>SQL Server lỗi 547: câu lệnh vi phạm ràng buộc (ở đây là khoá ngoại từ bảng khác trỏ tới xe).</summary>
+    private static bool LaLoiKhoaNgoai(Exception? e)
+    {
+        for (; e is not null; e = e.InnerException)
+            if (e is Microsoft.Data.SqlClient.SqlException { Number: 547 }) return true;
+        return false;
+    }
 }
 
 public class GoiChoRepository : IGoiChoRepository

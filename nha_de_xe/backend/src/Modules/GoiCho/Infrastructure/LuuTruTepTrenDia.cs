@@ -31,6 +31,12 @@ public sealed partial class LuuTruTepTrenDia : ILuuTruTep
         return Task.FromResult<Stream?>(File.Exists(duongDan) ? File.OpenRead(duongDan) : null);
     }
 
+    public Task XoaAsync(string khoa, CancellationToken ct)
+    {
+        File.Delete(DuongDan(khoa)); // không có tệp thì File.Delete không báo lỗi
+        return Task.CompletedTask;
+    }
+
     /// <summary>Chặn khoá kiểu "../../etc/passwd": chỉ nhận chữ thường, số, gạch, và phải nằm trong thư mục gốc.</summary>
     private string DuongDan(string khoa)
     {

@@ -35,6 +35,8 @@ public static class HanhDongThongBao
     public const string TraPhi = "TRA_PHI";
     /// <summary>luot_gui_id: mở màn hình chỉ đường tới khu.</summary>
     public const string DanDuong = "DAN_DUONG";
+    /// <summary>luot_gui_id: xe vừa ra khỏi khu, mở màn hình chỉ đường ra Cổng ra Y.</summary>
+    public const string DuongRa = "DUONG_RA";
     /// <summary>xe_id: xe đang đỗ ở khu nào.</summary>
     public const string XemViTri = "XEM_VI_TRI";
     /// <summary>Sơ đồ chỗ trống (bãi hết chỗ, khu đầy mà không có chỉ dẫn).</summary>
@@ -68,7 +70,7 @@ public static class HanhDongThongBao
 
     public static readonly IReadOnlyCollection<string> TatCa = new[]
     {
-        XacNhanRa, XemLuot, TraPhi, DanDuong, XemViTri, XemSoDo, MuaGoi, GuiLaiGiay, XemXe, XemNhom, DoiMatKhau,
+        XacNhanRa, XemLuot, TraPhi, DanDuong, DuongRa, XemViTri, XemSoDo, MuaGoi, GuiLaiGiay, XemXe, XemNhom, DoiMatKhau,
         DuyetXe, XemXeAdmin, XuLyCongRa, XemCongVao, XemDiSaiKhu, XemSoXeKhu, XemCameraKhu,
     };
 }

@@ -25,6 +25,9 @@ public static class DependencyInjection
         // Điều hướng trong bãi (mở rộng chọn khu + giữ suất)
         s.AddScoped<LayDuongDiUseCase>();
         s.AddScoped<LayDieuHuongCuaToiUseCase>();
+        s.AddScoped<LayDuongRaUseCase>();
+        s.AddScoped<LayDuongRaCuaToiUseCase>();
+        s.AddScoped<LayDuongRaXeCuaToiUseCase>();
         s.AddScoped<DoiKhuDichUseCase>();
         s.AddScoped<LayDiSaiKhuUseCase>();
         s.AddScoped<ITimXeModule, TimXeModule>();

@@ -1,5 +1,6 @@
 using NhaXe.Modules.GoiCho.Application;
 using NhaXe.Modules.GoiCho.Domain;
+using NhaXe.Modules.ThongBao.Contracts;
 using NhaXe.SharedKernel;
 
 namespace NhaXe.Tests;
@@ -101,7 +102,7 @@ public class DuyetHangLoatTests
         repo.Ds.Add(Xe.DungLai(3, 5, 2, "59D100003", TrangThaiDuyet.DaDuyet, "giay-dk/3.png"));  // đã xử lý
         repo.Ds.Add(Xe.DungLai(4, 5, 2, "59D100004", TrangThaiDuyet.ChoDuyet, "giay-dk/4.png"));
 
-        var kq = await new DuyetHangLoatUseCase(repo, new FakeClock(), new FakeThongBaoModule()).ThucHienAsync(1, new DuyetHangLoatLenh(new[] { 1, 2, 3, 4, 99, 1 }, true, null));
+        var kq = await new DuyetHangLoatUseCase(repo, new FakeClock(), new FakeThongBaoModule(), new FakeLuuTruTep()).ThucHienAsync(1, new DuyetHangLoatLenh(new[] { 1, 2, 3, 4, 99, 1 }, true, null));
 
         Assert.Equal(new[] { 1, 4 }, kq.ThanhCong);
         Assert.Equal(new[] { "THIEU_ANH_GIAY_DK", "DA_XU_LY", "KHONG_TIM_THAY_XE" }, kq.Loi.Select(l => l.Ma));
@@ -114,9 +115,90 @@ public class DuyetHangLoatTests
         var repo = new FakeXeRepository();
         repo.Ds.Add(Xe.DungLai(1, 4, 2, "59D100001", TrangThaiDuyet.ChoDuyet, "giay-dk/1.png"));
         repo.Ds.Add(Xe.DungLai(2, 5, 2, "59D100002", TrangThaiDuyet.ChoDuyet));
-        var kq = await new DuyetHangLoatUseCase(repo, new FakeClock(), new FakeThongBaoModule()).ThucHienAsync(1, new DuyetHangLoatLenh(new[] { 1, 2 }, false, "Ảnh không khớp biển số"));
+        var tb = new FakeThongBaoModule();
+        var kq = await new DuyetHangLoatUseCase(repo, new FakeClock(), tb, new FakeLuuTruTep()).ThucHienAsync(1, new DuyetHangLoatLenh(new[] { 1, 2 }, false, "Ảnh không khớp biển số"));
         Assert.Equal(2, kq.ThanhCong.Count);
-        Assert.All(repo.Ds, x => Assert.Equal("Ảnh không khớp biển số", x.LyDoTuChoi));
+        Assert.Empty(repo.Ds); // bị từ chối thì xoá xe luôn
+        Assert.All(tb.DaGui, t => Assert.Contains("Ảnh không khớp biển số", t.NoiDung));
+    }
+
+    [Fact]
+    public async Task TuChoiMotXe_XoaXeVaAnh_BienSoDangKyLaiDuoc()
+    {
+        var repo = new FakeXeRepository();
+        var kho = new FakeLuuTruTep();
+        kho.Tep["giay-dk/1.png"] = new byte[] { 1 };
+        repo.Ds.Add(Xe.DungLai(1, 4, 2, "54L19999", TrangThaiDuyet.ChoDuyet, "giay-dk/1.png"));
+        var tb = new FakeThongBaoModule();
+        await new DuyetXeUseCase(repo, new FakeClock(), tb, kho).ThucHienAsync(1, 1, false, "Tên chủ xe không khớp tài khoản");
+
+        Assert.Empty(repo.Ds);
+        Assert.Empty(kho.Tep); // ảnh giấy đăng ký (thông tin cá nhân) xoá theo xe
+        var tin = Assert.Single(tb.DaGui);
+        Assert.Equal(((int?)4, "KET_QUA_DUYET"), (tin.TaiKhoanId, tin.Loai));
+        Assert.Contains("Tên chủ xe không khớp tài khoản", tin.NoiDung);
+        Assert.Contains("đăng ký lại", tin.NoiDung);
+        Assert.Equal(("XEM_XE", (int?)null), (tin.Dich!.HanhDong, tin.Dich.ThamChieuId)); // xe đã xoá: không trỏ tới xe_id
+
+        await new ThemXeUseCase(repo, new FakeGoiChoRepository(), new FakeClock(), new FakeCauHinh())
+            .ThucHienAsync(4, new ThemXeLenh(2, "54L1-9999", false));
+        Assert.Single(repo.Ds);
+    }
+
+    [Fact]
+    public async Task TuChoi_XeConDuocBangKhacThamChieu_GiuTuChoi_KhongLoi()
+    {
+        var repo = new FakeXeRepository();
+        var kho = new FakeLuuTruTep();
+        kho.Tep["giay-dk/1.png"] = new byte[] { 1 };
+        repo.Ds.Add(Xe.DungLai(1, 4, 2, "54L19999", TrangThaiDuyet.ChoDuyet, "giay-dk/1.png"));
+        repo.KhongXoaDuoc.Add(1); // vd. còn lượt gửi / ghi nhận đi sai khu trỏ tới xe
+        var tb = new FakeThongBaoModule();
+
+        await new DuyetXeUseCase(repo, new FakeClock(), tb, kho).ThucHienAsync(1, 1, false, "Ảnh mờ, không đọc được");
+
+        var xe = Assert.Single(repo.Ds);
+        Assert.Equal((TrangThaiDuyet.TuChoi, "Ảnh mờ, không đọc được"), (xe.TrangThaiDuyet, xe.LyDoTuChoi));
+        Assert.Single(kho.Tep); // xe còn thì ảnh còn
+        var tin = Assert.Single(tb.DaGui);
+        Assert.Equal(new DichThongBao(HanhDongThongBao.GuiLaiGiay, 1), tin.Dich); // xe còn: gửi lại ảnh như trước
+    }
+
+    [Fact]
+    public async Task TuChoiHangLoat_MotXeKhongXoaDuoc_XeKhacVanXoa()
+    {
+        var repo = new FakeXeRepository();
+        repo.Ds.Add(Xe.DungLai(1, 4, 2, "59D100001", TrangThaiDuyet.ChoDuyet, "giay-dk/1.png"));
+        repo.Ds.Add(Xe.DungLai(2, 5, 2, "59D100002", TrangThaiDuyet.ChoDuyet));
+        repo.KhongXoaDuoc.Add(1);
+        var tb = new FakeThongBaoModule();
+
+        var kq = await new DuyetHangLoatUseCase(repo, new FakeClock(), tb, new FakeLuuTruTep()).ThucHienAsync(1, new DuyetHangLoatLenh(new[] { 1, 2 }, false, "Ảnh không khớp biển số"));
+
+        Assert.Equal(new[] { 1, 2 }, kq.ThanhCong);
+        Assert.Equal((1, TrangThaiDuyet.TuChoi), (Assert.Single(repo.Ds).Id, repo.Ds[0].TrangThaiDuyet));
+        Assert.Equal(2, tb.DaGui.Count); // cả 2 chủ xe đều được báo
+    }
+
+    [Fact]
+    public async Task XoaAnhLoi_VanTuChoiVaXoaXe()
+    {
+        var repo = new FakeXeRepository();
+        var kho = new FakeLuuTruTep { LoiKhiXoa = true };
+        repo.Ds.Add(Xe.DungLai(1, 4, 2, "54L19999", TrangThaiDuyet.ChoDuyet, "giay-dk/1.png"));
+        var tb = new FakeThongBaoModule();
+        await new DuyetXeUseCase(repo, new FakeClock(), tb, kho).ThucHienAsync(1, 1, false, "Ảnh mờ, không đọc được");
+        Assert.Empty(repo.Ds);
+        Assert.Single(tb.DaGui);
+    }
+
+    [Fact]
+    public async Task TuChoiKhongLyDo_KhongXoaXe()
+    {
+        var repo = new FakeXeRepository();
+        repo.Ds.Add(Xe.DungLai(1, 4, 2, "54L19999", TrangThaiDuyet.ChoDuyet));
+        await Assert.ThrowsAsync<LoiNghiepVu>(() => new DuyetXeUseCase(repo, new FakeClock(), new FakeThongBaoModule(), new FakeLuuTruTep()).ThucHienAsync(1, 1, false, ""));
+        Assert.Single(repo.Ds);
     }
 
     [Fact]
@@ -124,7 +206,7 @@ public class DuyetHangLoatTests
     {
         var repo = new FakeXeRepository();
         repo.Ds.Add(Xe.DungLai(1, 4, 2, "59D100001", TrangThaiDuyet.ChoDuyet, "giay-dk/1.png"));
-        await Assert.ThrowsAsync<LoiNghiepVu>(() => new DuyetHangLoatUseCase(repo, new FakeClock(), new FakeThongBaoModule()).ThucHienAsync(1, new DuyetHangLoatLenh(new[] { 1 }, false, "")));
+        await Assert.ThrowsAsync<LoiNghiepVu>(() => new DuyetHangLoatUseCase(repo, new FakeClock(), new FakeThongBaoModule(), new FakeLuuTruTep()).ThucHienAsync(1, new DuyetHangLoatLenh(new[] { 1 }, false, "")));
         Assert.Equal(TrangThaiDuyet.ChoDuyet, repo.Ds[0].TrangThaiDuyet);
     }
 }

@@ -98,6 +98,13 @@ public class TimXeRepository(TimXeDbContext db) : ITimXeRepository
     public Task<ViTriXe?> LayGhiCuoiAsync(int luotGuiId, CancellationToken ct) =>
         db.ViTri.AsNoTracking().Where(v => v.LuotGuiId == luotGuiId).OrderByDescending(v => v.ThayLuc).ThenByDescending(v => v.Id).FirstOrDefaultAsync(ct);
 
+    public async Task<IReadOnlyDictionary<int, ViTriXe>> LayGhiCuoiNhieuAsync(IReadOnlyCollection<int> luotGuiIds, CancellationToken ct)
+    {
+        if (luotGuiIds.Count == 0) return new Dictionary<int, ViTriXe>();
+        var ds = await db.ViTri.AsNoTracking().Where(v => luotGuiIds.Contains(v.LuotGuiId)).ToListAsync(ct);
+        return ds.GroupBy(v => v.LuotGuiId).ToDictionary(g => g.Key, g => g.OrderByDescending(x => x.ThayLuc).ThenByDescending(x => x.Id).First());
+    }
+
     public async Task<DateTime?> LayLanCuoiTaiCameraAsync(int luotGuiId, int cameraId, CancellationToken ct) =>
         await db.ViTri.AsNoTracking().Where(v => v.LuotGuiId == luotGuiId && v.CameraId == cameraId)
             .OrderByDescending(v => v.ThayLuc).Select(v => (DateTime?)v.ThayLuc).FirstOrDefaultAsync(ct);

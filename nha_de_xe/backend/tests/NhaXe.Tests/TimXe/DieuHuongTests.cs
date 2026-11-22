@@ -6,6 +6,7 @@ using NhaXe.Modules.GoiCho.Contracts;
 using NhaXe.Modules.TimXe.Application;
 using NhaXe.Modules.TimXe.Domain;
 using NhaXe.SharedKernel;
+using NhaXe.Modules.ThongBao.Contracts;
 using NhaXe.Tests.BaiXe;
 using LoaiTB = NhaXe.Modules.ThongBao.Contracts.LoaiThongBao;
 
@@ -51,6 +52,8 @@ public class DieuHuongTests
     private LayDieuHuongCuaToiUseCase CuaToi() => new(_goiCho, _cong, _bai, _repo, Muc(), _clock);
     private DoiKhuDichUseCase DoiKhu() => new(_goiCho, _cong, _repo, Muc(), CuaToi(), _clock);
     private Task<PhienDieuHuongDto?> Phien() => CuaToi().ThucHienAsync(2).ContinueWith(t => t.Result.Phien);
+    private Task<XeRaKhuDto?> XeRa(int taiKhoanId = 2) =>
+        new LayDuongRaCuaToiUseCase(_goiCho, _cong, _bai, _repo, _clock).ThucHienAsync(taiKhoanId).ContinueWith(t => t.Result.XeRaKhu);
 
     private async Task VaoCong(int xeId, int luotId)
     {
@@ -142,10 +145,106 @@ public class DieuHuongTests
     }
 
     [Fact]
+    public void DoThiThat_DuongRa_TuMoiKhuToiCongRaY_QuaGocDayO()
+    {
+        var g = DoThiBanDo.MacDinh;
+        var (nut, canh) = g.ChoBaiXe(new Dictionary<string, int> { ["R"] = R, ["S"] = S, ["HAM"] = HAM });
+        var ra = Assert.Single(nut, n => n.LaCongRa);
+        Assert.Equal("Cổng ra Y", ra.Ten);
+        Assert.Null(ra.KhuId);
+        string[] Ma(int khu)
+        {
+            var dau = nut.Single(n => n.KhuId == khu);
+            var (_, truoc) = DuongNganNhat.Tinh(dau.Id, canh);
+            return DuongNganNhat.Duong(dau.Id, ra.Id, truoc)!.Select(id => g.CacNut.Single(n => n.Id == id).Ma).ToArray();
+        }
+        string[] cuoi = ["TRUC_DONG", "GOC_O", "DOC_TN", "GOC_RA", "LEN_RA", "CONG_Y"];
+        Assert.Equal(["KHU_HAM", "LOI_HAM", "RE_HAM", .. cuoi], Ma(HAM));
+        Assert.Equal(["KHU_S", "DAU_S", "DOC_S", .. cuoi], Ma(S));
+        Assert.Equal(["KHU_R", "DAU_R", "DUONG_R", "GOC_TREN", "GOC_TRUC", "TRUC_GIUA", "RE_HAM", .. cuoi], Ma(R));
+        // Cổng vào X đánh dấu "cong": "VAO", Cổng ra Y "cong": "RA"
+        Assert.Equal(["CONG_X"], g.CacNut.Where(n => n.CongVao).Select(n => n.Ma));
+        Assert.Equal(["CONG_Y"], g.CacNut.Where(n => n.CongRa).Select(n => n.Ma));
+        Assert.Equal("Cổng vào X", Assert.Single(nut, n => n.LaCongVao).Ten);
+    }
+
+    /// <summary>BaiXeModule chạy trên đồ thị thật (do-thi-ban-do.json): mỗi khu R / S / Hầm ra Cổng ra Y, đúng thứ tự nút và số mét.</summary>
+    [Theory]
+    [InlineData(R, new[] { "KHU_R", "DAU_R", "DUONG_R", "GOC_TREN", "GOC_TRUC", "TRUC_GIUA", "RE_HAM" })]
+    [InlineData(S, new[] { "KHU_S", "DAU_S", "DOC_S" })]
+    [InlineData(HAM, new[] { "KHU_HAM", "LOI_HAM", "RE_HAM" })]
+    public async Task BaiXeModule_DoThiThat_TimDuongRa_TuMoiKhu_DungThuTuNut(int khu, string[] dau)
+    {
+        var g = DoThiBanDo.MacDinh;
+        var (nut, canh) = g.ChoBaiXe(new Dictionary<string, int> { ["R"] = R, ["S"] = S, ["HAM"] = HAM });
+        var q = new FakeCauHinhBaiQuery();
+        q.Nut.AddRange(nut); q.Canh.AddRange(canh);
+        var d = (await new BaiXeModule(null!, q, new FakeClock()).TimDuongRaAsync(khu))!;
+        string[] cuoi = ["TRUC_DONG", "GOC_O", "DOC_TN", "GOC_RA", "LEN_RA", "CONG_Y"];
+        DoThiBanDo.Nut N(int id) => g.CacNut.Single(n => n.Id == id);
+        Assert.Equal([.. dau, .. cuoi], d.Diem.Select(p => N(p.NutId).Ma));
+        Assert.Equal(khu, d.KhuId);
+        var met = d.Diem.Zip(d.Diem.Skip(1), (a, b) => g.DoDai(N(a.NutId), N(b.NutId))).Sum();
+        Assert.Equal(met, d.TongMet, 1);
+        Assert.Equal("Cổng ra Y", d.Diem[^1].Ten);
+    }
+
+    [Fact]
+    public async Task BaiXeModule_TimDuongRa_NhieuCongRa_ChonCongGanNhat_KhuKhongNoi_Null()
+    {
+        var q = new FakeCauHinhBaiQuery();
+        // 1 cổng vào - 2 khu A (5); 2 - 3 cổng ra xa (60 m); 2 - 4 cổng ra gần (15 m); 6 khu B (7) không nối gì
+        q.Nut.AddRange([new(1, "Cổng vào", 0, 0, null, LaCongVao: true), new(2, "Đầu khu A", 1, 0, 5), new(3, "Cổng ra xa", 2, 0, null, LaCongRa: true),
+                        new(4, "Cổng ra gần", 3, 0, null, LaCongRa: true), new(6, "Đầu khu B", 4, 0, 7)]);
+        q.Canh.AddRange([new(1, 2, 10), new(2, 3, 60), new(2, 4, 15)]);
+        var m = new BaiXeModule(null!, q, new FakeClock());
+        var d = (await m.TimDuongRaAsync(5))!;
+        Assert.Equal(["Đầu khu A", "Cổng ra gần"], d.Diem.Select(x => x.Ten));
+        Assert.Equal(15d, d.TongMet);
+        Assert.Null(await m.TimDuongRaAsync(7));   // khu không nối tới cổng ra nào
+        Assert.Null(await m.TimDuongRaAsync(99));  // khu không có trên sơ đồ
+        // Đường vào khu vẫn tính từ cổng vào (LaCongVao), không đổi
+        Assert.Equal(["Cổng vào", "Đầu khu A"], (await m.TimDuongAsync(5))!.Diem.Select(x => x.Ten));
+    }
+
+    [Fact]
+    public void DoThi_DocCong_VaoRaVaVaoRa_KemCachGhiCu()
+    {
+        const string Dau = """{"anh":{"rong":1,"cao":1,"metMoiPx":1},"nut":[""";
+        var g = DoThiBanDo.Doc(Dau + """{"ma":"X","x":0,"y":0,"cong":"vao_ra"},{"ma":"K","x":1,"y":0,"khu":"r"}],"canh":[["X","K"]]}""");
+        Assert.True(g.CacNut[0] is { CongVao: true, CongRa: true });
+        Assert.True(g.CacNut[1] is { CongVao: false, CongRa: false, MaKhu: "R" });
+        g = DoThiBanDo.Doc(Dau + """{"ma":"X","x":0,"y":0,"cong":"VAO"},{"ma":"Y","x":1,"y":0,"congRa":true},{"ma":"Z","x":1,"y":1,"cong":"RA"}],"canh":[]}""");
+        Assert.Equal(["X"], g.CacNut.Where(n => n.CongVao).Select(n => n.Ma));
+        Assert.Equal(["Y", "Z"], g.CacNut.Where(n => n.CongRa).Select(n => n.Ma)); // cách ghi cũ congRa vẫn đọc; nhiều cổng ra được phép
+    }
+
+    [Fact]
+    public async Task BaiXeModule_TimDuongRa_ChuaCoCongRa_TraNull()
+    {
+        var q = new FakeCauHinhBaiQuery();
+        q.Nut.AddRange([new(1, "Lối vào", 0, 0, null), new(2, "Đầu khu A", 1, 0, 5), new(3, "Cổng ra", 2, 0, null)]);
+        q.Canh.AddRange([new(1, 2, 10), new(2, 3, 20)]);
+        var m = new BaiXeModule(null!, q, new FakeClock());
+        Assert.Null(await m.TimDuongRaAsync(5));
+        q.Nut[2] = q.Nut[2] with { LaCongRa = true };
+        var d = (await m.TimDuongRaAsync(5))!;
+        Assert.Equal((5, 20d), (d.KhuId, d.TongMet));
+        Assert.Equal(["Đầu khu A", "Cổng ra"], d.Diem.Select(x => x.Ten));
+    }
+
+    [Fact]
     public void DoThi_JsonSai_BaoLoiRo()
     {
         Assert.Throws<InvalidOperationException>(() => DoThiBanDo.Doc("""{"anh":{"rong":1,"cao":1,"metMoiPx":1},"nut":[{"ma":"A","x":2,"y":0}],"canh":[]}"""));
         Assert.Throws<InvalidOperationException>(() => DoThiBanDo.Doc("""{"anh":{"rong":1,"cao":1,"metMoiPx":1},"nut":[{"ma":"A","x":0,"y":0}],"canh":[["A","B"]]}"""));
+        // Cổng gắn khu / thiếu cổng ra / thiếu cổng vào / giá trị cong lạ
+        Assert.Throws<InvalidOperationException>(() => DoThiBanDo.Doc("""{"anh":{"rong":1,"cao":1,"metMoiPx":1},"nut":[{"ma":"A","x":0,"y":0,"cong":"VAO"},{"ma":"B","x":1,"y":0,"khu":"R","cong":"RA"}],"canh":[]}"""));
+        Assert.Contains("cổng ra", Assert.Throws<InvalidOperationException>(() => DoThiBanDo.Doc(
+            """{"anh":{"rong":1,"cao":1,"metMoiPx":1},"nut":[{"ma":"A","x":0,"y":0,"cong":"VAO"},{"ma":"K","x":1,"y":0,"khu":"R"}],"canh":[["A","K"]]}""")).Message);
+        Assert.Contains("cổng vào", Assert.Throws<InvalidOperationException>(() => DoThiBanDo.Doc(
+            """{"anh":{"rong":1,"cao":1,"metMoiPx":1},"nut":[{"ma":"A","x":0,"y":0,"cong":"RA"}],"canh":[]}""")).Message);
+        Assert.Throws<InvalidOperationException>(() => DoThiBanDo.Doc("""{"anh":{"rong":1,"cao":1,"metMoiPx":1},"nut":[{"ma":"A","x":0,"y":0,"cong":"CUA_SAU"}],"canh":[]}"""));
     }
 
     // ---------------- 2.3 Kết thúc qua camera khu ----------------
@@ -291,5 +390,105 @@ public class DieuHuongTests
         var d = await new LayDuongDiUseCase(_bai).ThucHienAsync(HAM);
         Assert.Equal(HAM, d.DenKhuId);
         Assert.Empty(_repo.Giu);
+    }
+
+    // ---------------- Đường ra cổng: camera RA của khu thấy xe ----------------
+
+    [Fact]
+    public async Task CameraRaKhu_BaoNguoiDung_VaCuaToiRaCoDuongRa()
+    {
+        await VaoCong(2, 10);
+        await Camera().ThucHienAsync(100 + R, "29B112345", null, null);
+        Assert.Null(await XeRa()); // đang đỗ trong khu: chưa có đường ra
+
+        _clock.BayGio = _clock.BayGio.AddMinutes(40);
+        var kq = await Camera().ThucHienAsync(200 + R, "29B112345", null, null);
+        Assert.Equal((KetQuaCamera.DaGhi, HuongDi.Ra), (kq.KetQua, kq.Huong));
+        Assert.Contains(_tb.DaGui, t => t.TaiKhoanId == 2 && t.Loai == LoaiTB.Khu && t.NoiDung.Contains("vừa ra khỏi Khu R")
+                                        && t.Dich == new DichThongBao(HanhDongThongBao.DuongRa, 10));
+
+        var ra = (await XeRa())!;
+        Assert.Equal((10, 2, "29B112345", R, "Khu R", _clock.BayGio), (ra.LuotGuiId, ra.XeId, ra.BienSo, ra.KhuId, ra.TenKhu, ra.RaLuc));
+        Assert.Equal((R, "Cổng ra Y"), (ra.Duong!.TuKhuId, ra.Duong.Diem[^1].Ten));
+        Assert.Null(await XeRa(99)); // tài khoản khác không thấy
+    }
+
+    [Fact]
+    public async Task CuaToiRa_HetSauMuoiLamPhut_VaoKhuKhac_HoacQuaCongRa()
+    {
+        await VaoCong(2, 10);
+        await Camera().ThucHienAsync(100 + R, "29B112345", null, null);
+        _clock.BayGio = _clock.BayGio.AddMinutes(5);
+        await Camera().ThucHienAsync(200 + R, "29B112345", null, null);
+
+        _clock.BayGio = _clock.BayGio.AddMinutes(15);
+        Assert.NotNull(await XeRa());
+        _clock.BayGio = _clock.BayGio.AddSeconds(1);
+        Assert.Null(await XeRa()); // quá 15 phút
+
+        _clock.BayGio = _clock.BayGio.AddMinutes(-10);
+        await Camera().ThucHienAsync(100 + HAM, "29B112345", null, null);
+        Assert.Null(await XeRa()); // đã vào khu khác
+
+        _cong.TheoXe.Remove(2);
+        Assert.Null(await XeRa()); // qua cổng ra: lượt gửi đóng
+    }
+
+    [Fact]
+    public async Task CameraRaKhu_SoDoChuaCoCongRa_KhongBao_DuongNull()
+    {
+        _bai.CoDuongRa = false;
+        await VaoCong(2, 10);
+        await Camera().ThucHienAsync(100 + R, "29B112345", null, null);
+        _clock.BayGio = _clock.BayGio.AddMinutes(1);
+        await Camera().ThucHienAsync(200 + R, "29B112345", null, null);
+        Assert.DoesNotContain(_tb.DaGui, t => t.Dich?.HanhDong == HanhDongThongBao.DuongRa);
+        var ra = (await XeRa())!;
+        Assert.Null(ra.Duong);
+        await Assert.ThrowsAsync<LoiNghiepVu>(() => new LayDuongRaUseCase(_bai).ThucHienAsync(R));
+    }
+
+    // ---------------- Nút "Tìm đường ra" (GET /api/dieu-huong/duong-ra, không có tuKhu) ----------------
+
+    private LayDuongRaXeCuaToiUseCase DuongRaXe() => new(_goiCho, _cong, _bai);
+
+    [Fact]
+    public async Task TimDuongRa_XeDangOKhu_TraDuongTuKhuDo_KhongGhiGi()
+    {
+        _cong.CoXeTrongBai(2, 10, HAM);
+        var d = await DuongRaXe().ThucHienAsync(2, null);
+        Assert.Equal((HAM, 30d), (d.TuKhuId, d.TongMet));
+        Assert.Equal("Cổng ra Y", d.Diem[^1].Ten);
+        Assert.Empty(_cong.DaGhiViTri);
+        Assert.Empty(_repo.Giu);
+    }
+
+    [Fact]
+    public async Task TimDuongRa_XeTrongBaiNhungChuaOKhu_XE_CHUA_O_KHU()
+    {
+        _cong.CoXeTrongBai(2, 10);
+        Assert.Equal("XE_CHUA_O_KHU", (await Assert.ThrowsAsync<LoiNghiepVu>(() => DuongRaXe().ThucHienAsync(2, null))).Ma);
+        Assert.Equal("XE_CHUA_O_KHU", (await Assert.ThrowsAsync<LoiNghiepVu>(() => DuongRaXe().ThucHienAsync(2, 1))).Ma); // xe 1 không trong bãi
+    }
+
+    [Fact]
+    public async Task TimDuongRa_NhieuXeOKhu_CanXeId_XeIdChonDungKhu()
+    {
+        _cong.CoXeTrongBai(1, 11, R).CoXeTrongBai(2, 12, S);
+        var loi = await Assert.ThrowsAsync<LoiNghiepVu>(() => DuongRaXe().ThucHienAsync(2, null));
+        Assert.Equal(("CAN_CHON_XE", LoaiLoi.DuLieuKhongHopLe), (loi.Ma, loi.Loai));
+        Assert.Equal(S, (await DuongRaXe().ThucHienAsync(2, 2)).TuKhuId);
+        Assert.Equal(R, (await DuongRaXe().ThucHienAsync(2, 1)).TuKhuId);
+    }
+
+    [Fact]
+    public async Task TimDuongRa_XeKhongCuaToi_HoacSoDoChuaCoDuongRa_404()
+    {
+        _cong.CoXeTrongBai(2, 10, R);
+        Assert.Equal("KHONG_TIM_THAY_XE", (await Assert.ThrowsAsync<LoiNghiepVu>(() => DuongRaXe().ThucHienAsync(7, 2))).Ma);
+        Assert.Equal("XE_CHUA_O_KHU", (await Assert.ThrowsAsync<LoiNghiepVu>(() => DuongRaXe().ThucHienAsync(7, null))).Ma);
+        _bai.CoDuongRa = false;
+        var loi = await Assert.ThrowsAsync<LoiNghiepVu>(() => DuongRaXe().ThucHienAsync(2, null));
+        Assert.Equal(("KHONG_CO_DUONG_RA", LoaiLoi.KhongTimThay), (loi.Ma, loi.Loai));
     }
 }

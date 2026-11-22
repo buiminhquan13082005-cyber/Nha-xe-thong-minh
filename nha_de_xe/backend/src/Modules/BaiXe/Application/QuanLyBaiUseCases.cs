@@ -293,9 +293,30 @@ public class BaiXeModule : IBaiXeModule
             ds.Select(id => theoId[id]).Select(n => new DiemDuong(n.Id, n.Ten, n.X, n.Y)).ToList());
     }
 
-    /// <summary>Cổng vào = nút tên "Lối vào"; không có thì nút không gắn khu có id nhỏ nhất.</summary>
+    /// <summary>
+    /// Đường ngắn nhất từ nút của khu tới cổng ra GẦN NHẤT: chạy Dijkstra một lần từ khu (cạnh vô hướng nên đường ra = đường từ khu),
+    /// rồi chọn trong các cổng ra tới được cổng có khoảng cách nhỏ nhất. Khu không có trên sơ đồ / không nối tới cổng ra nào: null.
+    /// </summary>
+    public async Task<DuongDiDto?> TimDuongRaAsync(int khuId, CancellationToken ct = default)
+    {
+        var nut = await _q.LayNutAsync(ct);
+        var dau = nut.FirstOrDefault(n => n.KhuId == khuId);
+        if (dau is null || !nut.Any(n => n.LaCongRa)) return null;
+        var (kc, truoc) = DuongNganNhat.Tinh(dau.Id, await _q.LayCanhAsync(ct));
+        var ra = nut.Where(n => n.LaCongRa && kc.ContainsKey(n.Id)).OrderBy(n => kc[n.Id]).ThenBy(n => n.Id).FirstOrDefault();
+        if (ra is null) return null;
+        var ds = DuongNganNhat.Duong(dau.Id, ra.Id, truoc);
+        if (ds is null) return null;
+        var met = kc[ra.Id];
+        var theoId = nut.ToDictionary(n => n.Id);
+        return new DuongDiDto(khuId, Math.Round(met, 2),
+            ds.Select(id => theoId[id]).Select(n => new DiemDuong(n.Id, n.Ten, n.X, n.Y)).ToList());
+    }
+
+    /// <summary>Cổng vào = nút LaCongVao (id nhỏ nhất); không có thì nút tên "Lối vào"; không có nữa thì nút không gắn khu có id nhỏ nhất.</summary>
     internal static NutRow? Cong(IReadOnlyList<NutRow> nut) =>
-        nut.FirstOrDefault(n => n.KhuId is null && n.Ten.Trim().Equals("Lối vào", StringComparison.OrdinalIgnoreCase))
+        nut.Where(n => n.LaCongVao).OrderBy(n => n.Id).FirstOrDefault()
+        ?? nut.FirstOrDefault(n => n.KhuId is null && n.Ten.Trim().Equals("Lối vào", StringComparison.OrdinalIgnoreCase))
         ?? nut.Where(n => n.KhuId is null).OrderBy(n => n.Id).FirstOrDefault();
 
     private async Task<(IReadOnlyList<NutRow> Nut, IReadOnlyDictionary<int, double> Kc, IReadOnlyDictionary<int, int> Truoc)> DoThiAsync(CancellationToken ct)

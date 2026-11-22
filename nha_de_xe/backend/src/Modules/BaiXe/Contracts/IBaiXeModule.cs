@@ -17,6 +17,12 @@ public interface IBaiXeModule
 
     /// <summary>Đường ngắn nhất từ cổng vào tới đầu khu (UC-U18). null: khu chưa có nút lối đi hoặc không đi tới được.</summary>
     Task<DuongDiDto?> TimDuongAsync(int khuId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Đường ngắn nhất từ đầu khu ra Cổng ra Y (xe vừa ra khỏi khu). KhuId của kết quả là khu xuất phát.
+    /// null: khu chưa có nút lối đi, sơ đồ chưa có cổng ra, hoặc không đi tới được.
+    /// </summary>
+    Task<DuongDiDto?> TimDuongRaAsync(int khuId, CancellationToken ct = default) => Task.FromResult<DuongDiDto?>(null);
 }
 
 /// <param name="MaSoDo">Mã chấm trên ảnh sơ đồ (R, S, HAM). null: khu không có chấm.</param>

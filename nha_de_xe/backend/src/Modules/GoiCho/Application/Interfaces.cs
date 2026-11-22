@@ -13,6 +13,11 @@ public interface IXeRepository
     Task<IReadOnlyList<Xe>> LayChoDuyetAsync(CancellationToken ct);
     Task<int> DemChoDuyetCuaAsync(int taiKhoanId, CancellationToken ct);
     void Them(Xe xe);
+    /// <summary>
+    /// Thử xoá hẳn xe (dùng cho xe bị từ chối duyệt), chạy NGAY, không chờ LuuAsync.
+    /// Trả false nếu bảng khác (lượt gửi, đi sai khu...) còn tham chiếu tới xe: xe được giữ nguyên, không ném lỗi.
+    /// </summary>
+    Task<bool> ThuXoaAsync(Xe xe, CancellationToken ct);
     Task LuuAsync(CancellationToken ct);
 }
 
@@ -26,6 +31,8 @@ public interface ILuuTruTep
     Task<string> LuuAsync(string thuMuc, string duoi, Stream noiDung, CancellationToken ct);
     /// <summary>Mở tệp theo khoá; null nếu không có.</summary>
     Task<Stream?> MoAsync(string khoa, CancellationToken ct);
+    /// <summary>Xoá tệp theo khoá; không có tệp thì thôi.</summary>
+    Task XoaAsync(string khoa, CancellationToken ct);
 }
 
 /// <summary>Đọc tham số cấu hình (bảng cau_hinh). Interface nhỏ riêng (ISP): use case chỉ cần đọc 1 số.</summary>

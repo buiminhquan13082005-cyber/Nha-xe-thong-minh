@@ -10,7 +10,9 @@ namespace NhaXe.Modules.BaiXe.Application;
 /// </summary>
 public sealed class DoThiBanDo
 {
-    public record Nut(int Id, string Ma, string? Ten, double X, double Y, string? MaKhu);
+    /// <param name="CongRa">true: cổng ra (đích của đường ra). Nhiều cổng ra: đường ra chọn cổng gần nhất.</param>
+    /// <param name="CongVao">true: cổng vào (gốc Dijkstra của đường vào khu).</param>
+    public record Nut(int Id, string Ma, string? Ten, double X, double Y, string? MaKhu, bool CongRa = false, bool CongVao = false);
 
     public IReadOnlyList<Nut> CacNut { get; }
     public IReadOnlyList<(string A, string B)> CacCanh { get; }
@@ -23,9 +25,27 @@ public sealed class DoThiBanDo
 
     private record Json(JsonAnh Anh, List<JsonNut> Nut, List<List<string>> Canh);
     private record JsonAnh(double Rong, double Cao, double MetMoiPx);
-    private record JsonNut(string Ma, string? Ten, double X, double Y, string? Khu);
+    /// <param name="Cong">"VAO" | "RA" | "VAO_RA" (không phân biệt hoa thường). CongRa = true: cách ghi cũ, coi như "RA".</param>
+    private record JsonNut(string Ma, string? Ten, double X, double Y, string? Khu, string? Cong, bool? CongRa);
 
-    /// <summary>Đọc và kiểm tra JSON: mã nút không trùng, cạnh trỏ tới nút có thật, toạ độ trong 0..1.</summary>
+    /// <summary>"cong" → (vào, ra). Giá trị lạ thì báo lỗi.</summary>
+    private static (bool Vao, bool Ra) DocCong(JsonNut n)
+    {
+        var (vao, ra) = n.Cong?.Trim().ToUpperInvariant() switch
+        {
+            null or "" => (false, false),
+            "VAO" => (true, false),
+            "RA" => (false, true),
+            "VAO_RA" => (true, true),
+            var la => throw new InvalidOperationException($"Nút {n.Ma}: cong = \"{la}\" không hợp lệ (VAO, RA hoặc VAO_RA)."),
+        };
+        return (vao, ra || n.CongRa == true);
+    }
+
+    /// <summary>
+    /// Đọc và kiểm tra JSON: mã nút không trùng, cạnh trỏ tới nút có thật, toạ độ trong 0..1,
+    /// có ít nhất một cổng vào và một cổng ra, cổng không gắn khu.
+    /// </summary>
     public static DoThiBanDo Doc(string json)
     {
         var j = JsonSerializer.Deserialize<Json>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
@@ -34,11 +54,16 @@ public sealed class DoThiBanDo
         var nut = j.Nut.Select((n, i) =>
         {
             if (n.X is < 0 or > 1 || n.Y is < 0 or > 1) throw new InvalidOperationException($"Nút {n.Ma}: x, y phải trong 0..1.");
+            var (vao, ra) = DocCong(n);
             return new Nut(i + 1, n.Ma, string.IsNullOrWhiteSpace(n.Ten) ? null : n.Ten, n.X, n.Y,
-                           string.IsNullOrWhiteSpace(n.Khu) ? null : n.Khu.Trim().ToUpperInvariant());
+                           string.IsNullOrWhiteSpace(n.Khu) ? null : n.Khu.Trim().ToUpperInvariant(), ra, vao);
         }).ToList();
         var ma = nut.Select(n => n.Ma).ToList();
         if (ma.Distinct().Count() != ma.Count) throw new InvalidOperationException("Đồ thị bản đồ có mã nút trùng.");
+        if (!nut.Any(n => n.CongVao)) throw new InvalidOperationException("Đồ thị bản đồ chưa có cổng vào (nút có \"cong\": \"VAO\" hoặc \"VAO_RA\").");
+        if (!nut.Any(n => n.CongRa)) throw new InvalidOperationException("Đồ thị bản đồ chưa có cổng ra (nút có \"cong\": \"RA\" hoặc \"VAO_RA\").");
+        if (nut.FirstOrDefault(n => (n.CongRa || n.CongVao) && n.MaKhu is not null) is { } sai)
+            throw new InvalidOperationException($"Nút {sai.Ma}: cổng không được gắn khu.");
         var canh = (j.Canh ?? new()).Select(c =>
         {
             if (c.Count != 2 || !ma.Contains(c[0]) || !ma.Contains(c[1]))
@@ -68,7 +93,7 @@ public sealed class DoThiBanDo
     {
         var theoMa = CacNut.ToDictionary(n => n.Ma);
         var nut = CacNut.Select(n => new NutRow(n.Id, n.Ten ?? "", n.X, n.Y,
-            n.MaKhu is not null && khuTheoMa.TryGetValue(n.MaKhu, out var k) ? k : null)).ToList();
+            n.MaKhu is not null && khuTheoMa.TryGetValue(n.MaKhu, out var k) ? k : null, n.CongRa, n.CongVao)).ToList();
         var canh = CacCanh.Select(c => new DuongNganNhat.Canh(theoMa[c.A].Id, theoMa[c.B].Id, DoDai(theoMa[c.A], theoMa[c.B]))).ToList();
         return (nut, canh);
     }

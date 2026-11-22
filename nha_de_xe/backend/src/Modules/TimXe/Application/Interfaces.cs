@@ -16,6 +16,14 @@ public interface ITimXeRepository
     Task<IReadOnlyList<GiuChoKhu>> KetThucQuaHanAsync(DateTime bayGio, CancellationToken ct);
     /// <summary>Lần ghi gần nhất của lượt gửi (mọi nguồn) và lần gần nhất tại một camera (chống đọc lặp).</summary>
     Task<ViTriXe?> LayGhiCuoiAsync(int luotGuiId, CancellationToken ct);
+    /// <summary>Lần ghi cuối của nhiều lượt gửi (khoá theo luotGuiId; lượt chưa có lần ghi nào thì không có trong kết quả).</summary>
+    async Task<IReadOnlyDictionary<int, ViTriXe>> LayGhiCuoiNhieuAsync(IReadOnlyCollection<int> luotGuiIds, CancellationToken ct)
+    {
+        var kq = new Dictionary<int, ViTriXe>();
+        foreach (var id in luotGuiIds.Distinct())
+            if (await LayGhiCuoiAsync(id, ct) is { } v) kq[id] = v;
+        return kq;
+    }
     Task<DateTime?> LayLanCuoiTaiCameraAsync(int luotGuiId, int cameraId, CancellationToken ct);
     /// <summary>Suất được mời gần nhất của các lượt gửi (để hiện "Mời vào khu X" trên app).</summary>
     Task<IReadOnlyDictionary<int, GiuChoKhu>> LayGiuGanNhatAsync(IReadOnlyCollection<int> luotGuiIds, CancellationToken ct);

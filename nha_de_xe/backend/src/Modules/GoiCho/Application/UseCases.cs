@@ -214,33 +214,59 @@ public class LayXeChoDuyetUseCase
     }
 }
 
-/// <summary>Admin duyệt / từ chối một xe. Ghi ai duyệt, lúc nào; lưu DB xong mới báo chủ xe.</summary>
+/// <summary>
+/// Admin duyệt / từ chối một xe. Ghi ai duyệt, lúc nào; lưu DB xong mới báo chủ xe.
+/// Từ chối = XOÁ xe luôn (biển số được giải phóng, chủ xe đăng ký lại từ đầu); lý do nằm trong thông báo gửi chủ xe.
+/// Xe còn được bảng khác tham chiếu thì không xoá được: giữ trạng thái "bị từ chối" (chủ xe gửi lại ảnh như trước).
+/// </summary>
 public class DuyetXeUseCase
 {
     private readonly IXeRepository _xe;
     private readonly IClock _clock;
     private readonly IThongBaoModule _thongBao;
-    public DuyetXeUseCase(IXeRepository xe, IClock clock, IThongBaoModule thongBao) { _xe = xe; _clock = clock; _thongBao = thongBao; }
+    private readonly ILuuTruTep _luuTru;
+    public DuyetXeUseCase(IXeRepository xe, IClock clock, IThongBaoModule thongBao, ILuuTruTep luuTru)
+    { _xe = xe; _clock = clock; _thongBao = thongBao; _luuTru = luuTru; }
 
     public async Task ThucHienAsync(int adminId, int xeId, bool dongY, string? lyDo = null, CancellationToken ct = default)
     {
         var xe = await _xe.TimAsync(xeId, ct)
                  ?? throw new LoiNghiepVu(LoaiLoi.KhongTimThay, "KHONG_TIM_THAY_XE", "Không tìm thấy xe.");
-        if (dongY) xe.Duyet(adminId, _clock.BayGio); else xe.TuChoi(lyDo);
-        await _xe.LuuAsync(ct);
-        await BaoKetQuaDuyet.GuiAsync(_thongBao, xe, ct);
+        if (dongY) xe.Duyet(adminId, _clock.BayGio); else xe.TuChoi(lyDo); // kiểm tra trạng thái + lý do
+        await _xe.LuuAsync(ct); // lưu "bị từ chối" trước: xoá không được thì xe vẫn ở trạng thái đúng
+        var daXoa = !dongY && await XoaXeBiTuChoi.ThuAsync(_xe, _luuTru, xe, ct);
+        await BaoKetQuaDuyet.GuiAsync(_thongBao, xe, daXoa, ct);
+    }
+}
+
+/// <summary>Xoá xe bị từ chối kèm ảnh giấy đăng ký (thông tin cá nhân). Gọi SAU khi đã lưu trạng thái "bị từ chối".</summary>
+internal static class XoaXeBiTuChoi
+{
+    /// <returns>true nếu đã xoá xe; false nếu bảng khác còn tham chiếu nên giữ xe ở trạng thái "bị từ chối".</returns>
+    public static async Task<bool> ThuAsync(IXeRepository repo, ILuuTruTep luuTru, Xe xe, CancellationToken ct)
+    {
+        if (!await repo.ThuXoaAsync(xe, ct)) return false;
+        if (!string.IsNullOrEmpty(xe.AnhGiayDangKy))
+        {
+            try { await luuTru.XoaAsync(xe.AnhGiayDangKy, ct); }
+            catch (Exception e) when (e is not OperationCanceledException) { /* xe đã xoá xong; tệp sót lại không ai truy cập được */ }
+        }
+        return true;
     }
 }
 
 /// <summary>Báo chủ xe kết quả duyệt. Gọi SAU khi lưu DB; gửi lỗi thì không làm hỏng việc duyệt đã lưu.</summary>
 internal static class BaoKetQuaDuyet
 {
-    public static async Task GuiAsync(IThongBaoModule thongBao, Xe xe, CancellationToken ct)
+    public static async Task GuiAsync(IThongBaoModule thongBao, Xe xe, bool daXoa, CancellationToken ct)
     {
         var daDuyet = xe.TrangThaiDuyet == TrangThaiDuyet.DaDuyet;
-        var noiDung = daDuyet ? NoiDungThongBao.XeDaDuyet(xe.BienSo) : NoiDungThongBao.XeBiTuChoi(xe.BienSo, xe.LyDoTuChoi ?? "");
-        // được duyệt → mua gói cho xe đó; bị từ chối → mở xe đó để tải lại ảnh giấy đăng ký
-        var dich = new DichThongBao(daDuyet ? HanhDongThongBao.MuaGoi : HanhDongThongBao.GuiLaiGiay, xe.Id);
+        var lyDo = xe.LyDoTuChoi ?? "";
+        var (noiDung, dich) = daDuyet
+            ? (NoiDungThongBao.XeDaDuyet(xe.BienSo), new DichThongBao(HanhDongThongBao.MuaGoi, xe.Id))      // mua gói, chọn sẵn xe
+            : daXoa
+                ? (NoiDungThongBao.XeBiTuChoiDaXoa(xe.BienSo, lyDo), new DichThongBao(HanhDongThongBao.XemXe)) // xe đã xoá: mở trang Xe để đăng ký lại
+                : (NoiDungThongBao.XeBiTuChoi(xe.BienSo, lyDo), new DichThongBao(HanhDongThongBao.GuiLaiGiay, xe.Id)); // xe còn: gửi lại ảnh
         try { await thongBao.GuiAsync(xe.ChuXeId, LoaiThongBao.KetQuaDuyet, noiDung, dich, ct); }
         catch (Exception e) when (e is not OperationCanceledException) { /* đã duyệt xong; chủ xe vẫn thấy trạng thái trong "Xe của tôi" */ }
     }
@@ -249,6 +275,7 @@ internal static class BaoKetQuaDuyet
 /// <summary>
 /// Duyệt / từ chối nhiều xe một lần. Xe nào lỗi (đã xử lý, thiếu ảnh...) thì bỏ qua và báo riêng,
 /// các xe còn lại vẫn được xử lý; ghi DB một lần ở cuối.
+/// Từ chối: sau khi lưu, xoá TỪNG xe riêng; xe nào còn được tham chiếu thì giữ "bị từ chối", không làm hỏng cả lô.
 /// </summary>
 public class DuyetHangLoatUseCase
 {
@@ -256,7 +283,9 @@ public class DuyetHangLoatUseCase
     private readonly IXeRepository _xe;
     private readonly IClock _clock;
     private readonly IThongBaoModule _thongBao;
-    public DuyetHangLoatUseCase(IXeRepository xe, IClock clock, IThongBaoModule thongBao) { _xe = xe; _clock = clock; _thongBao = thongBao; }
+    private readonly ILuuTruTep _luuTru;
+    public DuyetHangLoatUseCase(IXeRepository xe, IClock clock, IThongBaoModule thongBao, ILuuTruTep luuTru)
+    { _xe = xe; _clock = clock; _thongBao = thongBao; _luuTru = luuTru; }
 
     public async Task<KetQuaHangLoatDto> ThucHienAsync(int adminId, DuyetHangLoatLenh lenh, CancellationToken ct = default)
     {
@@ -283,7 +312,11 @@ public class DuyetHangLoatUseCase
             catch (LoiNghiepVu e) { loi.Add(new(id, e.Ma, e.Message)); }
         }
         if (thanhCong.Count > 0) await _xe.LuuAsync(ct);
-        foreach (var xe in daXuLy) await BaoKetQuaDuyet.GuiAsync(_thongBao, xe, ct); // sau khi lưu DB
+        foreach (var xe in daXuLy) // sau khi lưu DB
+        {
+            var daXoa = !lenh.DongY && await XoaXeBiTuChoi.ThuAsync(_xe, _luuTru, xe, ct);
+            await BaoKetQuaDuyet.GuiAsync(_thongBao, xe, daXoa, ct);
+        }
         return new KetQuaHangLoatDto(thanhCong, loi);
     }
 }

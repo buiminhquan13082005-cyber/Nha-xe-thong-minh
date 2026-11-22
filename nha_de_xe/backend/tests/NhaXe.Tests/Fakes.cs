@@ -37,6 +37,10 @@ public class FakeXeRepository : IXeRepository
     public Task<int> DemChoDuyetCuaAsync(int taiKhoanId, CancellationToken ct) =>
         Task.FromResult(Ds.Count(x => x.ChuXeId == taiKhoanId && x.TrangThaiDuyet == TrangThaiDuyet.ChoDuyet));
     public void Them(Xe xe) => Ds.Add(xe);
+    /// <summary>Id xe còn được bảng khác tham chiếu (lượt gửi, đi sai khu...): DB sẽ chặn xoá.</summary>
+    public HashSet<int> KhongXoaDuoc { get; } = new();
+    public Task<bool> ThuXoaAsync(Xe xe, CancellationToken ct) =>
+        Task.FromResult(!KhongXoaDuoc.Contains(xe.Id) && Ds.Remove(xe));
     public Task LuuAsync(CancellationToken ct) => Task.CompletedTask;
 }
 
@@ -115,6 +119,12 @@ public class FakeLuuTruTep : ILuuTruTep
     }
     public Task<Stream?> MoAsync(string khoa, CancellationToken ct) =>
         Task.FromResult<Stream?>(Tep.TryGetValue(khoa, out var b) ? new MemoryStream(b) : null);
+    public bool LoiKhiXoa { get; set; }
+    public Task XoaAsync(string khoa, CancellationToken ct)
+    {
+        if (LoiKhiXoa) throw new IOException("Ổ đĩa lỗi");
+        Tep.Remove(khoa); return Task.CompletedTask;
+    }
 }
 
 public class FakeTaiKhoanModule : ITaiKhoanModule

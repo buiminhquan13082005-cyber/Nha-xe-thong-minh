@@ -234,6 +234,12 @@ public class XuLyCameraKhuUseCase(IBaiXeModule baiXe, ICongRaVaoModule cong, IGo
                 : $"Đã đến bãi đỗ thành công: xe {tt.BienSo} đang đỗ tại {tenKhu} (vào lúc {bayGio:HH:mm}).";
             await Bao(goiCho.LayNguoiDungXeAsync(luot.XeId, ct), noiDung, new DichThongBao(HanhDongThongBao.XemViTri, luot.XeId), ct);
         }
+        else if (await baiXe.TimDuongRaAsync(cam.KhuId, ct) is not null)
+        {
+            // Xe vừa ra khỏi khu: chỉ đường ra Cổng ra Y (app tự mở màn đường ra khi thấy GET dieu-huong/cua-toi/ra có dữ liệu)
+            await Bao(goiCho.LayNguoiDungXeAsync(luot.XeId, ct), $"Xe {tt.BienSo} vừa ra khỏi {tenKhu}. Xem đường tới Cổng ra Y.",
+                new DichThongBao(HanhDongThongBao.DuongRa, luot.LuotGuiId), ct);
+        }
         return new(KetQuaCamera.DaGhi, tt.BienSo, cam.KhuId, huong,
             huong == HuongDi.Vao ? $"Xe {tt.BienSo} vào {tenKhu}" : $"Xe {tt.BienSo} ra khỏi {tenKhu}",
             null, tinCay, khung, tenKhu, await SoXeAsync(cam.KhuId, ct), khu?.SucChua);

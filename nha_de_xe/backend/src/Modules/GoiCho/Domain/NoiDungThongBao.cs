@@ -45,6 +45,11 @@ public static class NoiDungThongBao
 
     public static string XeDaDuyet(string bienSo) => $"Xe {bienSo} đã được duyệt, bạn có thể mua gói.";
 
+    /// <summary>Bị từ chối và đã xoá xe (trường hợp thường gặp).</summary>
+    public static string XeBiTuChoiDaXoa(string bienSo, string lyDo) =>
+        $"Xe {bienSo} bị từ chối: {lyDo}. Xe đã bị xoá khỏi danh sách, bạn có thể đăng ký lại xe với ảnh giấy đăng ký đúng.";
+
+    /// <summary>Bị từ chối nhưng xe còn dữ liệu liên quan nên không xoá được: chủ xe gửi lại ảnh.</summary>
     public static string XeBiTuChoi(string bienSo, string lyDo) =>
         $"Xe {bienSo} bị từ chối: {lyDo}. Bạn có thể tải lại ảnh giấy đăng ký để gửi duyệt lại.";
 

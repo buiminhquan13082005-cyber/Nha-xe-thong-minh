@@ -101,7 +101,7 @@ public class QuanLyXeTests
     public async Task Duyet_GhiNguoiDuyetVaLuc_ChuXeCoThongBao()
     {
         _xe.Ds.Add(Xe.DungLai(9, 4, 2, "29A12345", TrangThaiDuyet.ChoDuyet, "giay-dk/1.png"));
-        await new DuyetXeUseCase(_xe, _clock, _tb).ThucHienAsync(1, 9, true);
+        await new DuyetXeUseCase(_xe, _clock, _tb, new FakeLuuTruTep()).ThucHienAsync(1, 9, true);
         Assert.Equal((TrangThaiDuyet.DaDuyet, (DateTime?)T0, (int?)1), (_xe.Ds[0].TrangThaiDuyet, _xe.Ds[0].DuyetLuc, _xe.Ds[0].DuyetBoiId));
         var tb = Assert.Single(_tb.DaGui);
         Assert.Equal((4, LoaiTB.KetQuaDuyet, "Xe 29A12345 đã được duyệt, bạn có thể mua gói."), (tb.TaiKhoanId!.Value, tb.Loai, tb.NoiDung));
@@ -112,15 +112,15 @@ public class QuanLyXeTests
     public async Task TuChoi_ChuXeNhanLyDo_KhongLyDoThiLoiVaKhongBao()
     {
         _xe.Ds.Add(Xe.DungLai(9, 4, 2, "29A12345", TrangThaiDuyet.ChoDuyet, "giay-dk/1.png"));
-        var uc = new DuyetXeUseCase(_xe, _clock, _tb);
+        var uc = new DuyetXeUseCase(_xe, _clock, _tb, new FakeLuuTruTep());
         Assert.Equal("THIEU_LY_DO", (await Assert.ThrowsAsync<LoiNghiepVu>(() => uc.ThucHienAsync(1, 9, false, "  "))).Ma);
         Assert.Empty(_tb.DaGui);
 
         await uc.ThucHienAsync(1, 9, false, "Ảnh mờ, không đọc được");
-        Assert.Null(_xe.Ds[0].DuyetLuc);
+        Assert.Empty(_xe.Ds); // từ chối = xoá xe
         var tb = Assert.Single(_tb.DaGui);
         Assert.StartsWith("Xe 29A12345 bị từ chối: Ảnh mờ, không đọc được.", tb.NoiDung);
-        Assert.Equal(new DichThongBao(HanhDongThongBao.GuiLaiGiay, 9), tb.Dich);
+        Assert.Equal(new DichThongBao(HanhDongThongBao.XemXe), tb.Dich); // xe đã xoá: mở trang Xe để đăng ký lại
     }
 
     [Fact]
@@ -128,7 +128,7 @@ public class QuanLyXeTests
     {
         _xe.Ds.Add(Xe.DungLai(1, 4, 2, "29A10001", TrangThaiDuyet.ChoDuyet, "giay-dk/1.png"));
         _xe.Ds.Add(Xe.DungLai(2, 5, 2, "29A10002", TrangThaiDuyet.ChoDuyet)); // thiếu ảnh: lỗi, không báo
-        await new DuyetHangLoatUseCase(_xe, _clock, _tb).ThucHienAsync(7, new DuyetHangLoatLenh(new[] { 1, 2 }, true, null));
+        await new DuyetHangLoatUseCase(_xe, _clock, _tb, new FakeLuuTruTep()).ThucHienAsync(7, new DuyetHangLoatLenh(new[] { 1, 2 }, true, null));
         Assert.Equal(new int?[] { 4 }, _tb.DaGui.Select(t => t.TaiKhoanId));
         Assert.Equal((int?)7, _xe.Ds[0].DuyetBoiId);
     }

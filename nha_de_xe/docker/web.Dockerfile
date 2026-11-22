@@ -11,5 +11,7 @@ RUN npm run build
 
 FROM nginxinc/nginx-unprivileged:1.27-alpine
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
+# Sinh cấu hình theo WEB_BIND (máy chủ / LAN) lúc khởi động, trước khi NGINX chạy
+COPY --chmod=755 docker/web-che-do-mang.sh /docker-entrypoint.d/15-che-do-mang.sh
 COPY --from=build /src/dist /usr/share/nginx/html
 EXPOSE 8080

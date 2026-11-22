@@ -55,5 +55,7 @@ public interface ICauHinhBaiQuery
         Task.FromResult<IReadOnlyList<DuongNganNhat.Canh>>(Array.Empty<DuongNganNhat.Canh>());
 }
 
-/// <summary>Nút lối đi. KhuId khác null: nút đầu khu. Nút "Lối vào" (không gắn khu, id nhỏ nhất) là cổng.</summary>
-public record NutRow(int Id, string Ten, double X, double Y, int? KhuId);
+/// <summary>Nút lối đi. KhuId khác null: nút đầu khu.
+/// LaCongVao: cổng vào (gốc của đường vào khu); không nút nào có cờ này thì dùng nút "Lối vào" / nút không gắn khu có id nhỏ nhất.
+/// LaCongRa: cổng ra, đích của đường ra (nhiều cổng ra: chọn cổng gần nhất).</summary>
+public record NutRow(int Id, string Ten, double X, double Y, int? KhuId, bool LaCongRa = false, bool LaCongVao = false);

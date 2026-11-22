@@ -20,11 +20,85 @@ public record PhienDieuHuongDto(int Id, int LuotGuiId, int XeId, string BienSo, 
 public record HetChoDto(string BienSo, DateTime Luc);
 public record DieuHuongCuaToiDto(DateTime BayGio, PhienDieuHuongDto? Phien, HetChoDto? HetCho);
 public record DoiKhuDichLenh(int KhuId);
+/// <summary>Đường từ khu ra Cổng ra Y, toạ độ theo tỉ lệ ảnh sơ đồ (0..1).</summary>
+public record DuongRaBanDoDto(int TuKhuId, double TongMet, IReadOnlyList<DiemBanDoDto> Diem);
+/// <summary>Xe của tôi vừa được camera RA của khu thấy (đang đi ra cổng), kèm đường ra. Duong null: sơ đồ chưa có đường ra từ khu này.</summary>
+public record XeRaKhuDto(int LuotGuiId, int XeId, string BienSo, int KhuId, string TenKhu, DateTime RaLuc, DuongRaBanDoDto? Duong);
+public record DuongRaCuaToiDto(DateTime BayGio, XeRaKhuDto? XeRaKhu);
 
 internal static class DuongBanDo
 {
-    public static DuongDiBanDoDto Tu(DuongDiDto d) =>
-        new(d.KhuId, d.TongMet, d.Diem.Select(p => new DiemBanDoDto(p.X, p.Y, string.IsNullOrEmpty(p.Ten) ? null : p.Ten)).ToList());
+    private static List<DiemBanDoDto> Diem(DuongDiDto d) =>
+        d.Diem.Select(p => new DiemBanDoDto(p.X, p.Y, string.IsNullOrEmpty(p.Ten) ? null : p.Ten)).ToList();
+    public static DuongDiBanDoDto Tu(DuongDiDto d) => new(d.KhuId, d.TongMet, Diem(d));
+    public static DuongRaBanDoDto Ra(DuongDiDto d) => new(d.KhuId, d.TongMet, Diem(d));
+}
+
+/// <summary>Đường từ khu ra Cổng ra Y, chỉ đọc. Cùng đồ thị + Dijkstra với đường vào.</summary>
+public class LayDuongRaUseCase(IBaiXeModule baiXe)
+{
+    public async Task<DuongRaBanDoDto> ThucHienAsync(int tuKhuId, CancellationToken ct = default) =>
+        await baiXe.TimDuongRaAsync(tuKhuId, ct) is { } d ? DuongBanDo.Ra(d)
+            : throw new LoiNghiepVu(LoaiLoi.KhongTimThay, "KHONG_CO_DUONG_RA", "Khu này chưa có đường ra cổng trên sơ đồ.");
+}
+
+/// <summary>
+/// Đường ra cổng của XE ĐANG ĐỖ trong khu (nút "Tìm đường ra"), chỉ đọc: không tạo phiên, không giữ suất, không ghi DB.
+/// Khu xe đang đỗ hỏi qua Contracts (GoiCho: xe tài khoản được dùng; CongRaVao: lượt gửi đang mở và khu đang đỗ),
+/// đường hỏi BaiXe (Dijkstra tới cổng ra gần nhất). Không đọc bảng của module khác.
+/// xeId null: tài khoản chỉ có đúng một xe đang ở khu thì lấy xe đó; nhiều xe thì phải truyền xeId (CAN_CHON_XE).
+/// </summary>
+public class LayDuongRaXeCuaToiUseCase(IGoiChoModule goiCho, ICongRaVaoModule cong, IBaiXeModule baiXe)
+{
+    public async Task<DuongRaBanDoDto> ThucHienAsync(int taiKhoanId, int? xeId, CancellationToken ct = default)
+    {
+        var xe = await goiCho.LayXeDuocDungAsync(taiKhoanId, ct);
+        if (xeId is { } id && xe.All(x => x.XeId != id))
+            throw new LoiNghiepVu(LoaiLoi.KhongTimThay, "KHONG_TIM_THAY_XE", "Không tìm thấy xe này trong danh sách xe của bạn.");
+        var ids = xeId is { } chon ? new[] { chon } : xe.Select(x => x.XeId).ToArray();
+        var trongKhu = (await cong.LayLuotGuiDangMoCuaXeAsync(ids, ct)).Values.Where(l => l.ViTriKhuId is not null).ToList();
+        if (trongKhu.Count == 0)
+            throw new LoiNghiepVu(LoaiLoi.KhongTimThay, "XE_CHUA_O_KHU", "Xe chưa được ghi nhận ở khu nào trong bãi.");
+        if (trongKhu.Count > 1)
+            throw new LoiNghiepVu(LoaiLoi.DuLieuKhongHopLe, "CAN_CHON_XE", "Bạn có nhiều xe trong bãi: chọn xe (xeId) để tìm đường ra.");
+        var khuId = trongKhu[0].ViTriKhuId!.Value;
+        return await baiXe.TimDuongRaAsync(khuId, ct) is { } d ? DuongBanDo.Ra(d)
+            : throw new LoiNghiepVu(LoaiLoi.KhongTimThay, "KHONG_CO_DUONG_RA", "Khu này chưa có đường ra cổng trên sơ đồ.");
+    }
+}
+
+/// <summary>
+/// "Đường ra cổng" của tôi: xe (của các tài khoản được dùng) vừa được camera RA của khu thấy trong 15 phút gần đây,
+/// lượt gửi vẫn mở (chưa qua cổng ra) và chưa vào khu khác. Lấy lần ra gần nhất. Không có thì XeRaKhu = null.
+/// Xe qua cổng ra (lượt gửi đóng) thì tự hết; app chuyển sang màn xác nhận xe ra như thường.
+/// </summary>
+public class LayDuongRaCuaToiUseCase(IGoiChoModule goiCho, ICongRaVaoModule cong, IBaiXeModule baiXe, ITimXeRepository repo, IClock clock)
+{
+    internal static readonly TimeSpan HienTrong = TimeSpan.FromMinutes(15);
+
+    public async Task<DuongRaCuaToiDto> ThucHienAsync(int taiKhoanId, CancellationToken ct = default)
+    {
+        var bayGio = clock.BayGio;
+        var xe = await goiCho.LayXeDuocDungAsync(taiKhoanId, ct);
+        if (xe.Count == 0) return new(bayGio, null);
+        var luot = await cong.LayLuotGuiDangMoCuaXeAsync(xe.Select(x => x.XeId), ct);
+
+        var ngoaiKhu = luot.Values.Where(l => l.ViTriKhuId is null).ToList();
+        var cuoi = await repo.LayGhiCuoiNhieuAsync(ngoaiKhu.Select(l => l.LuotGuiId).ToList(), ct);
+        (LuotGuiDangMo L, ViTriXe V)? moiNhat = null;
+        foreach (var l in ngoaiKhu)
+        {
+            if (!cuoi.TryGetValue(l.LuotGuiId, out var v)) continue;
+            if (v.Huong != HuongDi.Ra || v.Nguon != NguonGhi.CameraKhu || bayGio - v.ThayLuc > HienTrong) continue;
+            if (moiNhat is null || v.ThayLuc > moiNhat.Value.V.ThayLuc) moiNhat = (l, v);
+        }
+        if (moiNhat is not { } m) return new(bayGio, null);
+
+        var bienSo = (await goiCho.LayTinhTrangXeAsync(new[] { m.L.XeId }, ct)).GetValueOrDefault(m.L.XeId)?.BienSo ?? "";
+        var tenKhu = (await baiXe.LayKhuAsync(ct)).FirstOrDefault(k => k.Id == m.V.KhuId)?.Ten ?? $"Khu #{m.V.KhuId}";
+        var duong = await baiXe.TimDuongRaAsync(m.V.KhuId, ct) is { } d ? DuongBanDo.Ra(d) : null;
+        return new(bayGio, new XeRaKhuDto(m.L.LuotGuiId, m.L.XeId, bienSo, m.V.KhuId, tenKhu, m.V.ThayLuc, duong));
+    }
 }
 
 /// <summary>Đường từ Cổng vào X tới khu, chỉ đọc (không tạo phiên, không giữ suất). Cùng đồ thị + Dijkstra với chọn khu.</summary>
