@@ -1,0 +1,39 @@
+{
+  "expo": {
+    "name": "Nhà xe thông minh",
+    "slug": "nha-xe-thong-minh",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#fbf6ef",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-status-bar",
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "App cần xem ảnh để bạn chọn ảnh giấy đăng ký xe (cà vẹt).",
+          "cameraPermission": "App cần dùng máy ảnh để bạn chụp giấy đăng ký xe (cà vẹt).",
+          "microphonePermission": false
+        }
+      ]
+    ],
+    "scheme": "nhaxe"
+  }
+}
