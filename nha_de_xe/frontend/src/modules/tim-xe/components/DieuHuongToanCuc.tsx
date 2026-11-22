@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useApp } from '@/app/AppContext';
 import { useNgheThongBao } from '@/shared/realtime/useNgheThongBao';
-import type { DieuHuongCuaToi, KhuCho } from '../models';
+import type { DieuHuongCuaToi, KhuCho, XeRaKhu } from '../models';
 import { GiaDieuHuongService } from '../services/dieuHuongGia';
 import { DemNguocGiuCho } from './DemNguocGiuCho';
 import { ManHinhDanDuong, ThoiGianDaDo } from './ManHinhDanDuong';
+import { ManHinhDuongRa, type DuongRaDangXem } from './ManHinhDuongRa';
 
 /** Đang dẫn đường: hỏi lại mỗi 3 giây (dự phòng khi tín hiệu SignalR phát ở bản API khác). Không dẫn: 15 giây. */
 const CHU_KY_DAN = 3_000, CHU_KY_NGHI = 15_000;
@@ -17,6 +18,18 @@ const ghiDaXem = (khoa: string) => { try { sessionStorage.setItem(`dh:${khoa}`, 
 const SU_KIEN_MO = 'nx:mo-dan-duong';
 /** Trang khác (Tìm xe, khi bấm thông báo "Mời vào khu …") yêu cầu bật màn hình chỉ đường. */
 export function moManHinhDanDuong() { window.dispatchEvent(new Event(SU_KIEN_MO)); }
+
+const SU_KIEN_MO_RA = 'nx:mo-duong-ra';
+/**
+ * Mở màn "Đường ra cổng". tuKhuId có: đường từ khu đó (người dùng bấm "Chỉ đường ra cổng" ở Tìm xe).
+ * Không có: xe vừa được camera RA của khu thấy (mở từ thông báo).
+ */
+export function moManHinhDuongRa(tuKhuId?: number, bienSo?: string) {
+  window.dispatchEvent(new CustomEvent(SU_KIEN_MO_RA, { detail: { tuKhuId, bienSo } }));
+}
+
+const raDangXem = (x: XeRaKhu): DuongRaDangXem =>
+  ({ tuDong: true, luotGuiId: x.luotGuiId, bienSo: x.bienSo, tenKhu: x.tenKhu, raLuc: x.raLuc, duong: x.duong });
 
 /** Khoá "sự kiện" để tự bật màn hình đúng một lần: phiên mới, đổi trạng thái, hoặc báo hết chỗ. */
 function khoaSuKien(d: DieuHuongCuaToi): { khoa: string; luc: string } | null {
@@ -36,6 +49,45 @@ export function DieuHuongToanCuc() {
   const [mo, setMo] = useState(false);
   const [anThanh, setAnThanh] = useState<string | null>(null);
   const lanGoi = useRef(0);
+  /** Xe của tôi vừa ra khỏi khu (camera RA của khu), và màn "Đường ra cổng" đang mở (null: đóng). */
+  const [xeRa, setXeRa] = useState<XeRaKhu | null>(null);
+  const [ra, setRaThat] = useState<DuongRaDangXem | null>(null);
+  const lanGoiRa = useRef(0);
+  /** Lượt gửi đã tải số chỗ khu cho màn đường ra (chỉ tải một lần mỗi lượt, không tải lại mỗi 3 giây). */
+  const luotDaTaiKhu = useRef<number | null>(null);
+  /** Thanh "Xe vừa ra khỏi khu" bị ẩn (riêng với thanh dẫn đường / đang đỗ). */
+  const [anThanhRa, setAnThanhRa] = useState<string | null>(null);
+  /** Mở màn đường ra thì đóng hẳn màn dẫn đường (không để nó hiện lại khi đóng màn đường ra). */
+  const setRa = useCallback((r: DuongRaDangXem | null | ((c: DuongRaDangXem | null) => DuongRaDangXem | null)) => {
+    setRaThat((c) => {
+      const moi = typeof r === 'function' ? r(c) : r;
+      if (moi) setMo(false);
+      return moi;
+    });
+  }, []);
+
+  const taiRa = useCallback(async () => {
+    const lan = ++lanGoiRa.current;
+    try {
+      const x = (await services.dieuHuong.layDuongRaCuaToi()).xeRaKhu;
+      if (lan !== lanGoiRa.current) return x;
+      setXeRa(x);
+      // Đã qua cổng ra (hoặc quá 15 phút): đóng màn tự bật. Màn người dùng tự mở thì để họ tự đóng.
+      setRa((r) => (r?.tuDong ? (x ? raDangXem(x) : null) : r));
+      if (x) {
+        if (luotDaTaiKhu.current !== x.luotGuiId) {
+          luotDaTaiKhu.current = x.luotGuiId;
+          services.timXe.laySoXeKhu().then((s) => setKhu(s.khu)).catch(() => { luotDaTaiKhu.current = null; });
+        }
+        const khoa = `ra:${x.luotGuiId}:${x.raLuc}`;
+        if (!daXem(khoa)) {
+          ghiDaXem(khoa);
+          if (Date.now() - new Date(x.raLuc).getTime() < MOI_TRONG_MS) setRa(raDangXem(x));
+        }
+      }
+      return x;
+    } catch { return null; /* chưa có API hoặc lỗi mạng: thử lại ở chu kỳ sau */ }
+  }, [services]);
 
   const tai = useCallback(async () => {
     const lan = ++lanGoi.current;
@@ -50,15 +102,33 @@ export function DieuHuongToanCuc() {
         if (Date.now() - new Date(sk.luc).getTime() < MOI_TRONG_MS) setMo(true);
       }
     } catch { /* chưa có API hoặc lỗi mạng: thử lại ở chu kỳ sau */ }
-  }, [services]);
+  }, [services, setRa]);
 
   const dangDan = du?.phien?.trangThai === 'DANG_DAN';
+  const dangRa = !!xeRa;
   useEffect(() => {
-    void tai();
-    const id = window.setInterval(() => { if (!document.hidden) void tai(); }, dangDan ? CHU_KY_DAN : CHU_KY_NGHI);
+    void tai(); void taiRa();
+    const id = window.setInterval(() => { if (!document.hidden) { void tai(); void taiRa(); } }, dangDan || dangRa ? CHU_KY_DAN : CHU_KY_NGHI);
     return () => window.clearInterval(id);
-  }, [tai, dangDan]);
-  useNgheThongBao((s) => { if (['KHU', 'VAO', 'RA', 'DIEU_HUONG'].includes(s.loai)) void tai(); });
+  }, [tai, taiRa, dangDan, dangRa]);
+  useNgheThongBao((s) => { if (['KHU', 'VAO', 'RA', 'DIEU_HUONG'].includes(s.loai)) { void tai(); void taiRa(); } });
+  useEffect(() => {
+    const mo = async (e: Event) => {
+      const { tuKhuId, bienSo } = (e as CustomEvent<{ tuKhuId?: number; bienSo?: string }>).detail ?? {};
+      if (tuKhuId === undefined) {
+        const x = await taiRa();
+        if (x) setRa(raDangXem(x));
+        return;
+      }
+      const ds = await services.timXe.laySoXeKhu().then((s) => s.khu).catch(() => undefined);
+      if (ds) setKhu(ds);
+      const tenKhu = ds?.find((k) => k.id === tuKhuId)?.ten ?? 'khu của bạn';
+      try { setRa({ tuDong: false, bienSo, tenKhu, duong: await services.dieuHuong.layDuongRa(tuKhuId) }); }
+      catch (err) { setRa({ tuDong: false, bienSo, tenKhu, duong: null, loi: (err as Error).message }); }
+    };
+    window.addEventListener(SU_KIEN_MO_RA, mo);
+    return () => window.removeEventListener(SU_KIEN_MO_RA, mo);
+  }, [services, taiRa, setRa]);
   useEffect(() => {
     const mo = () => { void tai().then(() => setMo(true)); };
     window.addEventListener(SU_KIEN_MO, mo);
@@ -73,7 +143,9 @@ export function DieuHuongToanCuc() {
   const p = du?.phien;
   const daDo = p && (p.trangThai === 'DA_TOI' || p.trangThai === 'TOI_KHU_KHAC') && p.khuThucTe;
   const khoaThanh = p ? `thanh:${p.id}:${p.trangThai}` : null;
-  const hienThanh = !mo && p && (dangDan || daDo) && anThanh !== khoaThanh;
+  const hienThanh = !mo && !ra && !xeRa && p && (dangDan || daDo) && anThanh !== khoaThanh;
+  const khoaThanhRa = xeRa ? `ra:${xeRa.luotGuiId}:${xeRa.raLuc}` : null;
+  const hienThanhRa = !mo && !ra && xeRa && anThanhRa !== khoaThanhRa;
   const giaLap = services.dieuHuong instanceof GiaDieuHuongService ? services.dieuHuong.giaLap : null;
 
   return (
@@ -97,11 +169,22 @@ export function DieuHuongToanCuc() {
         </div>
       )}
 
-      {mo && du && (du.phien || du.hetCho) && (
+      {hienThanhRa && xeRa && (
+        <div className="thanh-dan-duong" role="status">
+          <span className="thanh-icon" aria-hidden="true">➜</span>
+          <span>Xe vừa ra khỏi <strong>{xeRa.tenKhu}</strong> · đi tới Cổng ra Y</span>
+          <button type="button" className="nut nut-nho" onClick={() => setRa(raDangXem(xeRa))}>Xem đường ra</button>
+          <button type="button" className="nut-x" aria-label="Ẩn" onClick={() => setAnThanhRa(khoaThanhRa)}>✕</button>
+        </div>
+      )}
+
+      {ra && <ManHinhDuongRa ra={ra} khu={khu} onDong={() => setRa(null)} />}
+
+      {mo && !ra && du && (du.phien || du.hetCho) && (
         <ManHinhDanDuong du={du} khu={khu} onDong={() => setMo(false)} onDoiKhu={doiKhu} />
       )}
 
-      {giaLap && <BangGiaLap giaLap={giaLap} sauKhi={async () => { await tai(); setMo(true); }} />}
+      {giaLap && <BangGiaLap giaLap={giaLap} sauKhi={async () => { await tai(); await taiRa(); setMo(true); }} />}
     </>
   );
 }
@@ -123,6 +206,7 @@ function BangGiaLap({ giaLap, sauKhi }: { giaLap: GiaDieuHuongService['giaLap'];
           {nut('Tới khu đã đầy (bị chặn)', giaLap.toiKhuDay)}
           {nut('Còn 20 giây giữ chỗ', giaLap.sapHetGio)}
           {nut('Hết 5 phút giữ chỗ', giaLap.hetHan)}
+          {nut('Camera RA của khu thấy xe', giaLap.raKhoiKhu)}
           {nut('Xe ra Cổng Y', giaLap.raCong)}
           {nut('Vào cổng khi mọi khu đầy', () => giaLap.vaoCong(true))}
           {nut('Xoá phiên', giaLap.xoa)}

@@ -6,12 +6,12 @@ import { Link } from 'react-router-dom';
 import { useApp } from '@/app/AppContext';
 import { soId, toSang, useKhiMoTuThongBao, useThamSoMotLan, useVeKhongMoDuoc } from '@/shared/ui/useDichDen';
 import { dinhDangNgay, hienThiBienSo } from '@/shared/utils/format';
-import type { KhuCho, XeTimXe } from '../models';
+import type { DuongRaBanDo, KhuCho, XeTimXe } from '../models';
 import { TEN_NGUON } from '../models';
 import { MucChoKhu } from '../components/MucChoKhu';
 import { BanDoBai } from '../components/BanDoBai';
 import { DemNguocGiuCho } from '../components/DemNguocGiuCho';
-import { moManHinhDanDuong } from '../components/DieuHuongToanCuc';
+import { moManHinhDanDuong, moManHinhDuongRa } from '../components/DieuHuongToanCuc';
 
 /**
  * Trang khách "Tìm xe" (xe máy, mức khu): sau khi qua cổng vào thấy "Mời vào khu X" kèm đường đi và thời gian giữ chỗ;
@@ -25,14 +25,17 @@ export function TimXePage() {
   const trongBai = tx.duLieu?.xe.filter((x) => x.trongBai) ?? [];
   const ngoaiBai = tx.duLieu?.xe.filter((x) => !x.trongBai) ?? [];
 
-  // Mở từ thông báo: ?xe=45 (xe đang đỗ ở khu nào) hoặc ?danDuong=<lượt gửi> (mở màn hình chỉ đường)
-  const [thamSo] = useThamSoMotLan('xe', 'danDuong');
+  // Mở từ thông báo: ?xe=45 (xe đang đỗ ở khu nào), ?danDuong=<lượt gửi> (mở màn hình chỉ đường)
+  // hoặc ?duongRa=<lượt gửi> (xe vừa ra khỏi khu: mở màn hình đường ra cổng)
+  const [thamSo] = useThamSoMotLan('xe', 'danDuong', 'duongRa');
   const [tinMo, setTinMo] = useState<{ loai: 'tin' | 'canh-bao' | 'loi'; noiDung: string; soDo?: boolean } | null>(null);
   const veKhongMoDuoc = useVeKhongMoDuoc();
   useKhiMoTuThongBao(thamSo, !!tx.duLieu, (t) => {
     setTinMo(null);
     const luot = soId(t.danDuong);
     if (luot !== null) { void moDanDuong(luot); return; }
+    const luotRa = soId(t.duongRa);
+    if (luotRa !== null) { void moDuongRa(luotRa); return; }
     const xeId = soId(t.xe);
     if (xeId === null) return;
     const x = tx.duLieu?.xe.find((v) => v.xeId === xeId);
@@ -56,6 +59,15 @@ export function TimXePage() {
         return;
       }
       setTinMo({ loai: 'tin', noiDung: 'Phiên chỉ đường này đã kết thúc (xe đã ra khỏi bãi hoặc đã có lượt gửi mới).', soDo: true });
+    } catch (e) { setTinMo({ loai: 'loi', noiDung: (e as Error).message }); }
+  }
+
+  /** Xe của lượt gửi đó vẫn đang đi ra (chưa qua cổng, trong 15 phút) thì mở đường ra; không thì nói rõ. */
+  async function moDuongRa(luot: number) {
+    try {
+      const x = (await services.dieuHuong.layDuongRaCuaToi()).xeRaKhu;
+      if (x && x.luotGuiId === luot) { moManHinhDuongRa(); return; }
+      setTinMo({ loai: 'tin', noiDung: 'Xe đã qua cổng ra hoặc thông báo đã cũ. Muốn xem lại đường ra, bấm "Chỉ đường ra cổng" ở xe đang trong bãi.' });
     } catch (e) { setTinMo({ loai: 'loi', noiDung: (e as Error).message }); }
   }
 
@@ -94,9 +106,21 @@ function TheTimXe({ x, bayGio, khu, khiXong }: { x: XeTimXe; bayGio: string; khu
   const macDinh = x.khuId ?? x.moiVao?.khuId ?? khu[0]?.id ?? 0;
   const [khuChon, setKhuChon] = useState(macDinh);
   const [moChon, setMoChon] = useState(false);
+  /** Xe chưa rõ khu: chọn khu đang đỗ để xem đường ra cổng. */
+  const [chonRa, setChonRa] = useState(false);
   const [kq, setKq] = useState<string | null>(null);
   const [loi, setLoi] = useState<string | null>(null);
   const [dangGui, setDangGui] = useState(false);
+  /** "Tìm đường ra": đường từ khu xe đang đỗ tới cổng ra, vẽ ngay trên bản đồ của thẻ (chỉ đọc, server tự biết khu). */
+  const [duongRa, setDuongRa] = useState<DuongRaBanDo | null>(null);
+  const [dangTimRa, setDangTimRa] = useState(false);
+
+  async function timDuongRa() {
+    setLoi(null); setDangTimRa(true);
+    try { setDuongRa(await services.dieuHuong.layDuongRaXeToi(x.xeId)); }
+    catch (e) { setLoi((e as Error).message); }
+    finally { setDangTimRa(false); }
+  }
 
   async function daDo() {
     setLoi(null); setKq(null); setDangGui(true);
@@ -106,6 +130,8 @@ function TheTimXe({ x, bayGio, khu, khiXong }: { x: XeTimXe; bayGio: string; khu
   }
 
   const dangGiu = x.moiVao?.trangThai === 'DANG_GIU' && !x.khuId;
+  // Xe đã chuyển khu (camera ghi khu mới) thì đường ra cũ không còn đúng: không vẽ nữa
+  const duongRaHien = duongRa && x.khuId && duongRa.tuKhuId === x.khuId ? duongRa : null;
   return (
     <div className="the the-tim-xe" data-dich={`xe-${x.xeId}`}>
       <div className="xe-dau">
@@ -141,9 +167,14 @@ function TheTimXe({ x, bayGio, khu, khiXong }: { x: XeTimXe; bayGio: string; khu
         <p className="mo">Chưa có camera lối vào khu nào ghi nhận xe. Đỗ xong, bấm "Đã đỗ xe" và chọn khu.</p>
       )}
 
-      {x.duong && (
+      {duongRaHien ? (
+        <>
+          <BanDoBai khu={khu} khuChonId={x.khuId} duong={duongRaHien} nhanCuoi="Cổng ra" />
+          <p className="mo">Đường ra cổng từ {x.khu}: khoảng <b>{Math.round(duongRaHien.tongMet)} m</b></p>
+        </>
+      ) : x.duong && (
         <BanDoBai khu={khu} khuDichId={x.duong.khuId} hienViTri={!x.khuId}
-                  duong={x.khuId ? null : { denKhuId: x.duong.khuId, tongMet: x.duong.tongMet, diem: x.duong.diem }} />
+                  duong={x.khuId ? null : x.duong} />
       )}
 
       {x.hoTroDinhVi && (
@@ -157,9 +188,24 @@ function TheTimXe({ x, bayGio, khu, khiXong }: { x: XeTimXe; bayGio: string; khu
           </div>
         ) : (
           <div className="hang-nut">
-            <button className="nut nut-phu" onClick={() => { setKhuChon(macDinh); setMoChon(true); }}>Đã đỗ xe</button>
+            <button className="nut nut-phu" onClick={() => { setKhuChon(macDinh); setChonRa(false); setMoChon(true); }}>Đã đỗ xe</button>
+            {x.khuId
+              ? (duongRaHien
+                ? <button className="nut nut-phu" onClick={() => setDuongRa(null)}>Ẩn đường</button>
+                : <button className="nut" onClick={() => void timDuongRa()} disabled={dangTimRa}>{dangTimRa ? 'Đang tìm…' : 'Tìm đường ra'}</button>)
+              // Chưa camera nào ghi khu: tự chọn khu đang đỗ để xem đường ra
+              : <button className="nut nut-phu" onClick={() => { setKhuChon(macDinh); setChonRa(true); }}>Chỉ đường ra cổng</button>}
           </div>
         )
+      )}
+      {x.hoTroDinhVi && chonRa && (
+        <div className="hang-form">
+          <select value={khuChon} onChange={(e) => setKhuChon(Number(e.target.value))} aria-label="Xe đang đỗ ở khu nào">
+            {khu.map((k) => <option key={k.id} value={k.id}>{k.ten}</option>)}
+          </select>
+          <button className="nut" disabled={!khuChon} onClick={() => { moManHinhDuongRa(khuChon, x.bienSo); setChonRa(false); }}>Xem đường ra</button>
+          <button className="nut nut-phu" onClick={() => setChonRa(false)}>Thôi</button>
+        </div>
       )}
       {kq && <ThongBao loai="ok">{kq}</ThongBao>}
       {loi && <ThongBao loai="loi">{loi}</ThongBao>}

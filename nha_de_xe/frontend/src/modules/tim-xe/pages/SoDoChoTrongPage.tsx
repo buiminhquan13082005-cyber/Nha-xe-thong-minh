@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { DangTai, ThongBao } from '@/shared/ui/ui';
+import { SoChay } from '@/shared/ui/SoChay';
 import { useTaiDuLieu } from '@/shared/ui/useTaiDuLieu';
 import { useApp } from '@/app/AppContext';
 import { BanDoBai } from '../components/BanDoBai';
@@ -43,7 +44,7 @@ export function SoDoChoTrongPage() {
       </div>
 
       <div className="the tong-cho-xe-may" aria-live="polite">
-        <span className="tong-cho-so">{ds.duLieu ? tongCon.toLocaleString('vi-VN') : '–'}</span>
+        <span className="tong-cho-so">{ds.duLieu ? <SoChay gia={tongCon} dinhDang={(n) => n.toLocaleString('vi-VN')} /> : '–'}</span>
         <div>
           <div className="tong-cho-nhan">chỗ xe máy còn trống</div>
           <div className="mo">

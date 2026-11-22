@@ -116,7 +116,12 @@ function KetThuc({ p, khu, onDong }: { p: PhienDieuHuong; khu: KhuCho[] | undefi
     <div className="mdd-than">
       {p.trangThai === 'DA_TOI' && thuc && (
         <div className="mdd-ket-qua mdd-ok">
-          <div className="mdd-bieu-tuong" aria-hidden="true">✓</div>
+          <div className="mdd-bieu-tuong" aria-hidden="true">
+            <svg className="dau-tich" viewBox="0 0 52 52">
+              <circle className="dau-tich-vong" cx="26" cy="26" r="23" pathLength={1} />
+              <path className="dau-tich-net" d="M 15 27 L 22 34 L 37 18" pathLength={1} />
+            </svg>
+          </div>
           <h2>Đã đến bãi đỗ thành công</h2>
           <p>Đang đỗ xe tại <strong>{thuc.ten}</strong></p>
           <p className="mo">Vào khu lúc {gioPhut(thuc.vaoLuc)} · đã đỗ <ThoiGianDaDo tu={thuc.vaoLuc} /></p>

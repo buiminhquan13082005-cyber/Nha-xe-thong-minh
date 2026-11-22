@@ -1,5 +1,5 @@
 import type { IHttpClient } from '@/shared/api/httpClient';
-import type { DieuHuongCuaToi, DuongDiBanDo, PhienDieuHuong } from '../models';
+import type { DieuHuongCuaToi, DuongDiBanDo, DuongRaBanDo, DuongRaCuaToi, PhienDieuHuong } from '../models';
 
 /** Điều hướng trong bãi (người dùng). Trang và component chỉ biết interface này. */
 export interface IDieuHuongService {
@@ -9,6 +9,15 @@ export interface IDieuHuongService {
   doiKhuDich(khuId: number): Promise<PhienDieuHuong>;
   /** Chỉ đọc: đường từ Cổng vào X tới khu (không tạo phiên, không giữ suất). Dùng chung đồ thị + Dijkstra ở server. */
   layDuongDi(denKhuId: number): Promise<DuongDiBanDo>;
+  /** Chỉ đọc: đường từ khu ra Cổng ra Y. */
+  layDuongRa(tuKhuId: number): Promise<DuongRaBanDo>;
+  /**
+   * Chỉ đọc: đường ra cổng từ khu XE ĐANG ĐỖ của tôi (server tự biết khu). Nhiều xe trong bãi thì truyền xeId.
+   * Lỗi XE_CHUA_O_KHU (404) khi xe chưa được ghi nhận ở khu nào.
+   */
+  layDuongRaXeToi(xeId?: number): Promise<DuongRaBanDo>;
+  /** Xe của tôi vừa ra khỏi khu (camera RA của khu thấy), kèm đường ra cổng. xeRaKhu null: không có. */
+  layDuongRaCuaToi(): Promise<DuongRaCuaToi>;
 }
 
 export class ApiDieuHuongService implements IDieuHuongService {
@@ -16,4 +25,9 @@ export class ApiDieuHuongService implements IDieuHuongService {
   layCuaToi() { return this.http.get<DieuHuongCuaToi>('/api/dieu-huong/cua-toi'); }
   doiKhuDich(khuId: number) { return this.http.put<PhienDieuHuong>('/api/dieu-huong/cua-toi/khu-dich', { khuId }); }
   layDuongDi(denKhuId: number) { return this.http.get<DuongDiBanDo>(`/api/dieu-huong/duong-di?tuKhu=CONG_X&denKhu=${denKhuId}`); }
+  layDuongRa(tuKhuId: number) { return this.http.get<DuongRaBanDo>(`/api/dieu-huong/duong-ra?tuKhu=${tuKhuId}`); }
+  layDuongRaXeToi(xeId?: number) {
+    return this.http.get<DuongRaBanDo>(`/api/dieu-huong/duong-ra${xeId === undefined ? '' : `?xeId=${xeId}`}`);
+  }
+  layDuongRaCuaToi() { return this.http.get<DuongRaCuaToi>('/api/dieu-huong/cua-toi/ra'); }
 }

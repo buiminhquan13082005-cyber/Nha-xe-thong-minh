@@ -9,6 +9,7 @@ describe('duongDanCho: có hanhDong (thông báo mới)', () => {
     ['XEM_LUOT', 123, '/ra-vao?luot=123'],
     ['TRA_PHI', 45, '/phi-qua-han/45'],
     ['DAN_DUONG', 123, '/tim-xe?danDuong=123'],
+    ['DUONG_RA', 123, '/tim-xe?duongRa=123'],
     ['XEM_VI_TRI', 45, '/tim-xe?xe=45'],
     ['XEM_SO_DO', null, '/so-do'],
     ['MUA_GOI', 45, '/mua-goi?xe=45'],

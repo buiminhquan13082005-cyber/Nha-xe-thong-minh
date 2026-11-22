@@ -1,5 +1,6 @@
 import { useApp } from '@/app/AppContext';
 import { useTaiDuLieu } from '@/shared/ui/useTaiDuLieu';
+import { SoChay } from '@/shared/ui/SoChay';
 import type { KhuCho } from '../models';
 import { TEN_MUC } from '../models';
 
@@ -32,7 +33,7 @@ export function TheKhu({ khu, cheDo, laDich = false, dangHienDuong = false, dang
         <button type="button" className="nut-x" onClick={onDong} aria-label="Đóng thẻ">✕</button>
       </div>
       <div className="the-khu-so">
-        <span className="lon">{khu.conLai}</span><span className="mo"> / {khu.sucChua} chỗ còn trống</span>
+        <SoChay className="lon" gia={khu.conLai} /><span className="mo"> / {khu.sucChua} chỗ còn trống</span>
       </div>
       {cheDo !== 'admin' && (
         <div className="mo">

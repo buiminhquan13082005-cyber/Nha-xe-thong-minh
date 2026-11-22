@@ -67,7 +67,8 @@ export function taoServices(): Services {
     thongBao: new ApiThongBaoService(http),
     thoiGianThuc: new SignalRKenh(),
     timXe,
-    dieuHuong: DU_LIEU_GIA ? new GiaDieuHuongService(async () => (await timXe.laySoXeKhu()).khu) : new ApiDieuHuongService(http),
+    dieuHuong: DU_LIEU_GIA ? new GiaDieuHuongService(async () => (await timXe.laySoXeKhu()).khu,
+      async (xeId) => (await timXe.layTimXe()).xe.find((x) => x.trongBai && x.khuId && (xeId === undefined || x.xeId === xeId))?.khuId ?? null) : new ApiDieuHuongService(http),
     baoCao: new ApiBaoCaoService(http),
   };
 }

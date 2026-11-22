@@ -1,4 +1,4 @@
-import type { DieuHuongCuaToi, DiemBanDo, DuongDiBanDo, KhuCho, PhienDieuHuong } from '../models';
+import type { DieuHuongCuaToi, DiemBanDo, DuongDiBanDo, DuongRaBanDo, DuongRaCuaToi, KhuCho, PhienDieuHuong, XeRaKhu } from '../models';
 import { KICH_THUOC_ANH, maSoDoCua, type MaSoDo } from '../soDoXeMay';
 import type { IDieuHuongService } from './dieuHuongService';
 
@@ -23,6 +23,17 @@ const M: Record<string, DiemBanDo> = {
   DOC_S: { x: 0.697, y: 0.31, ten: 'Đường giữa H1 và H3' },
   DAU_S: { x: 0.735, y: 0.275, ten: 'Đầu khu S' },
   KHU_S: { x: 0.85, y: 0.278, ten: 'Khu S' },
+  GOC_O: { x: 0.768, y: 0.47, ten: 'Góc dãy O' },
+  DOC_TN: { x: 0.768, y: 0.795, ten: 'Dọc Nhà thí nghiệm' },
+  GOC_RA: { x: 0.927, y: 0.795, ten: null },
+  LEN_RA: { x: 0.927, y: 0.681, ten: 'Rẽ phải ra cổng' },
+  CONG_Y: { x: 0.955, y: 0.681, ten: 'Cổng ra Y' },
+};
+const RA_CUOI = ['TRUC_DONG', 'GOC_O', 'DOC_TN', 'GOC_RA', 'LEN_RA', 'CONG_Y'];
+const TUYEN_RA: Record<MaSoDo, string[]> = {
+  R: ['KHU_R', 'DAU_R', 'DUONG_R', 'GOC_TREN', 'GOC_TRUC', 'TRUC_GIUA', 'RE_HAM', ...RA_CUOI],
+  S: ['KHU_S', 'DAU_S', 'DOC_S', ...RA_CUOI],
+  HAM: ['KHU_HAM', 'LOI_HAM', 'RE_HAM', ...RA_CUOI],
 };
 const TUYEN: Record<MaSoDo, string[]> = {
   R: ['CONG_X', 'NGA_BA_X1', 'GOC_TRUC', 'GOC_TREN', 'DUONG_R', 'DAU_R', 'KHU_R'],
@@ -42,6 +53,20 @@ function duongToi(k: KhuCho): DuongDiBanDo | null {
   return { denKhuId: k.id, tongMet: Math.round(px * MET_MOI_PX), diem };
 }
 
+const doDaiMet = (diem: DiemBanDo[]) => {
+  let px = 0;
+  for (let i = 1; i < diem.length; i++)
+    px += Math.hypot((diem[i].x - diem[i - 1].x) * KICH_THUOC_ANH.rong, (diem[i].y - diem[i - 1].y) * KICH_THUOC_ANH.cao);
+  return Math.round(px * MET_MOI_PX);
+};
+
+function duongRaTu(k: KhuCho): DuongRaBanDo | null {
+  const ma = maSoDoCua(k);
+  if (!ma) return null;
+  const diem = TUYEN_RA[ma].map((t) => M[t]);
+  return { tuKhuId: k.id, tongMet: doDaiMet(diem), diem };
+}
+
 const cho = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const PHUT_GIU = 5;
 
@@ -49,8 +74,11 @@ export class GiaDieuHuongService implements IDieuHuongService {
   private phien: PhienDieuHuong | null = null;
   private hetCho: DieuHuongCuaToi['hetCho'] = null;
   private soPhien = 0;
+  private xeRa: XeRaKhu | null = null;
 
-  constructor(private readonly layKhu: () => Promise<KhuCho[]>) {}
+  /** layKhuCuaXe: khu xe đang đỗ (null: chưa ở khu), để giả lập GET /api/dieu-huong/duong-ra không có tuKhu. */
+  constructor(private readonly layKhu: () => Promise<KhuCho[]>,
+              private readonly layKhuCuaXe: (xeId?: number) => Promise<number | null> = async () => null) {}
 
   private async khuXeMay() { return (await this.layKhu()).filter((k) => maSoDoCua(k) !== null); }
 
@@ -84,6 +112,25 @@ export class GiaDieuHuongService implements IDieuHuongService {
     const d = k && duongToi(k);
     if (!d) throw new Error('Khu này chưa có đường đi trên sơ đồ.');
     return d;
+  }
+
+  async layDuongRa(tuKhuId: number): Promise<DuongRaBanDo> {
+    await cho(150);
+    const k = (await this.khuXeMay()).find((x) => x.id === tuKhuId);
+    const d = k && duongRaTu(k);
+    if (!d) throw new Error('Khu này chưa có đường ra cổng trên sơ đồ.');
+    return d;
+  }
+
+  async layDuongRaXeToi(xeId?: number): Promise<DuongRaBanDo> {
+    const khuId = await this.layKhuCuaXe(xeId);
+    if (khuId === null) throw new Error('Xe chưa được ghi nhận ở khu nào trong bãi.');
+    return this.layDuongRa(khuId);
+  }
+
+  async layDuongRaCuaToi(): Promise<DuongRaCuaToi> {
+    await cho(100);
+    return { bayGio: new Date().toISOString(), xeRaKhu: this.xeRa && { ...this.xeRa } };
   }
 
   private ketThuc(tt: PhienDieuHuong['trangThai'], khuThucTe?: KhuCho) {
@@ -131,7 +178,15 @@ export class GiaDieuHuongService implements IDieuHuongService {
     /** Tua nhanh: còn 20 giây giữ chỗ. */
     sapHetGio: async () => { if (this.phien?.trangThai === 'DANG_DAN') this.phien.hetHanLuc = new Date(Date.now() + 20_000).toISOString(); },
     hetHan: async () => { if (this.phien?.trangThai === 'DANG_DAN') this.ketThuc('HET_HAN'); },
-    raCong: async () => { if (this.phien?.trangThai === 'DANG_DAN') this.ketThuc('DA_DONG'); },
-    xoa: async () => { this.phien = null; this.hetCho = null; },
+    /** Camera RA của khu (khu đã đỗ, hoặc khu đích) thấy xe đi ra: mở màn "Đường ra cổng". */
+    raKhoiKhu: async () => {
+      const p = this.phien;
+      const k = (await this.khuXeMay()).find((x) => x.id === (p?.khuThucTe?.id ?? p?.khuDich.id)) ?? (await this.khuXeMay())[0];
+      if (!k) return;
+      this.xeRa = { luotGuiId: p?.luotGuiId ?? 700, xeId: p?.xeId ?? 2, bienSo: p?.bienSo ?? '59C201909', khuId: k.id, tenKhu: k.ten,
+                    raLuc: new Date().toISOString(), duong: duongRaTu(k) };
+    },
+    raCong: async () => { if (this.phien?.trangThai === 'DANG_DAN') this.ketThuc('DA_DONG'); this.xeRa = null; },
+    xoa: async () => { this.phien = null; this.hetCho = null; this.xeRa = null; },
   };
 }

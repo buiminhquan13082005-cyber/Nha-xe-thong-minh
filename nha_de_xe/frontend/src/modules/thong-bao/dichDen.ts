@@ -7,6 +7,7 @@ export const HANH_DONG_KHACH = [
   'XEM_LUOT',      // luot_gui_id: xem lượt gửi trong lịch sử Ra vào
   'TRA_PHI',       // xe_id: trả phí quá hạn
   'DAN_DUONG',     // luot_gui_id: mở màn hình chỉ đường tới khu
+  'DUONG_RA',      // luot_gui_id: xe vừa ra khỏi khu, mở màn hình chỉ đường ra Cổng ra Y
   'XEM_VI_TRI',    // xe_id: xe đang đỗ ở khu nào (Tìm xe)
   'XEM_SO_DO',     // —: sơ đồ chỗ trống (bãi hết chỗ, khu đầy không có chỉ dẫn)
   'MUA_GOI',       // xe_id: mua / gia hạn gói, chọn sẵn xe
@@ -34,6 +35,7 @@ export type HanhDong = HanhDongKhach | HanhDongAdmin;
 export const NHAN_HANH_DONG: Partial<Record<HanhDong, string>> = {
   XAC_NHAN_RA: 'Xác nhận ra',
   DAN_DUONG: 'Xem đường đi',
+  DUONG_RA: 'Xem đường ra',
   TRA_PHI: 'Trả phí',
   MUA_GOI: 'Mua gói',
   GUI_LAI_GIAY: 'Gửi lại giấy',
@@ -107,6 +109,7 @@ export function duongDanCho(tb: ThongBaoDich, laAdmin: boolean): string | null {
     case 'XEM_LUOT': return `/ra-vao${q('luot')}`;
     case 'TRA_PHI': return id === null ? '/ra-vao' : `/phi-qua-han/${id}`;
     case 'DAN_DUONG': return `/tim-xe${q('danDuong')}`;
+    case 'DUONG_RA': return `/tim-xe${q('duongRa')}`;
     case 'XEM_VI_TRI': return `/tim-xe${q('xe')}`;
     case 'XEM_SO_DO': return '/so-do';
     case 'MUA_GOI': return `/mua-goi${q('xe')}`;

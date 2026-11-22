@@ -86,3 +86,10 @@ export interface PhienDieuHuong {
 
 /** GET /api/dieu-huong/cua-toi. hetCho: xe máy vừa vào cổng nhưng mọi khu đã đầy (không có phiên). */
 export interface DieuHuongCuaToi { bayGio: string; phien: PhienDieuHuong | null; hetCho: { bienSo: string; luc: string } | null }
+
+/** Đường ngắn nhất từ đầu khu ra Cổng ra Y (GET /api/dieu-huong/duong-ra?tuKhu=). */
+export interface DuongRaBanDo { tuKhuId: number; tongMet: number; diem: DiemBanDo[] }
+/** Xe của tôi vừa được camera RA của khu thấy (15 phút gần đây, chưa qua cổng ra). duong null: sơ đồ chưa có đường ra từ khu. */
+export interface XeRaKhu { luotGuiId: number; xeId: number; bienSo: string; khuId: number; tenKhu: string; raLuc: string; duong: DuongRaBanDo | null }
+/** GET /api/dieu-huong/cua-toi/ra. */
+export interface DuongRaCuaToi { bayGio: string; xeRaKhu: XeRaKhu | null }
