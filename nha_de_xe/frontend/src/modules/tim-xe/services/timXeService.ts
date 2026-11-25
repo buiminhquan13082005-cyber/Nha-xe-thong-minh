@@ -9,7 +9,7 @@ export interface ITimXeService {
   // Admin và khách: sơ đồ chỗ trống
   laySoXeKhu(): Promise<SoXeKhu>;
   // Admin
-  /** "Mời vào khu X" cho màn hình cổng sau khi xe vào. null: ô tô hoặc mọi khu đã đầy. */
+  /** "Mời vào khu X" cho màn hình cổng sau khi xe vào. null: mọi khu cùng loại xe đã đầy. */
   layChiDan(luotGuiId: number): Promise<ChiDan | null>;
   cameraKhuBienSo(cameraId: number, bienSo: string): Promise<KetQuaCameraKhu>;
   /** tuDong: màn hình tự quét mỗi giây (khung không có biển thì backend trả KHONG_THAY_BIEN). */

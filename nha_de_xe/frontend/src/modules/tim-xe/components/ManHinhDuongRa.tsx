@@ -59,7 +59,8 @@ export function ManHinhDuongRa({ ra, khu, onDong }: { ra: DuongRaDangXem; khu: K
             <div className="thong-bao thong-bao-canh-bao" role="status">Sơ đồ chưa có đường ra từ {ra.tenKhu}. Đi theo biển chỉ dẫn tới Cổng ra Y.</div>
           )}
 
-          <BanDoBai khu={khu} duong={d} hienViTri={!!dau} viTri={dau} nhanCuoi={d ? 'Cổng ra Y' : undefined} />
+          <BanDoBai khu={khu} duong={d} hienViTri={!!dau} viTri={dau} nhanCuoi={d ? 'Cổng ra Y' : undefined}
+                    loaiXeId={khu?.find((k) => k.id === d?.tuKhuId)?.loaiXeId} />
 
           {d && d.diem.length > 1 && (
             <ol className="mdd-cac-buoc">

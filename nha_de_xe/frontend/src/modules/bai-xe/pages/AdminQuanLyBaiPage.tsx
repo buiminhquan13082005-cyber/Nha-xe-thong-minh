@@ -7,7 +7,7 @@ import { dinhDangNgay, hienThiBienSo, tenLoaiXe } from '@/shared/utils/format';
 import type { CameraBai, CauHinhBai, KhuQuanLy, OQuanLy, TrangThaiO, VaiTroCamera } from '../models';
 import { TEN_VAI_TRO_CAMERA } from '../models';
 import { TEN_TRANG_THAI_O } from '../models';
-import { khuXeMayTrenSoDo, MucChoKhu } from '@/modules/tim-xe';
+import { khuOToTrenSoDo, khuXeMayTrenSoDo, MucChoKhu } from '@/modules/tim-xe';
 import type { KhuCho } from '@/modules/tim-xe/models';
 
 type Tab = 'khu' | 'o' | 'camera';
@@ -30,7 +30,8 @@ export function AdminQuanLyBaiPage() {
     else if (t.muc === 'di-sai' && !t.diSai) requestAnimationFrame(() => toSang('di-sai-khu'));
   });
   const [tin, setTin] = useState<{ loai: 'ok' | 'loi'; noiDung: string } | null>(null);
-  // Mặc định chỉ hiện khu đang dùng (cùng ô đỗ, camera của chúng). Bật ô này để thấy khu tạm tắt (VD Khu A, B ô tô) và bật lại.
+  // Tab Khu luôn hiện MỌI khu (khu tạm đóng vẫn ở nguyên chỗ, nhãn "Tạm đóng", để mở lại ngay).
+  // Tab Ô đỗ / Camera mặc định chỉ hiện của khu đang dùng; bật ô "Hiện ..." để thấy cả của khu tạm đóng.
   const [hienTat, setHienTat] = useState(false);
   const soKhuTat = ch.duLieu?.khu.filter((k) => !k.dangDung).length ?? 0;
   const chHien = useMemo(() => (ch.duLieu ? locKhuDangDung(ch.duLieu, hienTat) : null), [ch.duLieu, hienTat]);
@@ -51,8 +52,18 @@ export function AdminQuanLyBaiPage() {
       <h2 data-dich="so-xe-khu">Số xe trong các khu</h2>
       <p className="mo">Camera khu hướng vào nhận diện xe → cộng 1 vào khu; camera hướng ra nhận diện xe → trừ 1. Tự cập nhật mỗi 5 giây.</p>
       {soXe.loi && <ThongBao loai="loi">{soXe.loi}</ThongBao>}
-      {/* Chỉ 3 khu xe máy trên bản đồ (R, S, Hầm). Khu ô tô và khu mẫu C, D không hiện (dữ liệu DB vẫn giữ). */}
-      {soXe.duLieu && <MucChoKhu khu={khuXeMayTrenSoDo(soXe.duLieu.khu)} chiTiet />}
+      {/* Chỉ khu có chấm trên bản đồ: xe máy R, S, Hầm; ô tô A–Q. Khu không có trên ảnh (VD khu mẫu cũ) không hiện ở đây. */}
+      {soXe.duLieu && (
+        <>
+          <h3>Khu xe máy</h3>
+          <MucChoKhu khu={khuXeMayTrenSoDo(soXe.duLieu.khu)} chiTiet />
+          <h3>Khu ô tô</h3>
+          {khuOToTrenSoDo(soXe.duLieu.khu).some((k) => k.sucChua <= 0) && (
+            <ThongBao loai="tin">Có khu ô tô chưa đặt sức chứa: khu đó không được chỉ dẫn xe vào. Nhập sức chứa ở bảng Khu bên dưới (nút Sửa).</ThongBao>
+          )}
+          <MucChoKhu khu={khuOToTrenSoDo(soXe.duLieu.khu)} chiTiet loai="ô tô" />
+        </>
+      )}
       <DiSaiKhuBang moId={diSaiMo} moThamSo={thamSo} />
       <h2>Cấu hình bãi</h2>
       <p className="mo">Khai báo khu, ô đỗ và camera. Mỗi khu nên có 2 camera: một camera soi hướng vào, một camera soi hướng ra.</p>
@@ -61,16 +72,16 @@ export function AdminQuanLyBaiPage() {
         <button className={tab === 'o' ? 'chon' : ''} onClick={() => setTab('o')}>Ô đỗ</button>
         <button className={tab === 'camera' ? 'chon' : ''} onClick={() => setTab('camera')}>Camera</button>
       </div>
-      {soKhuTat > 0 && (
+      {soKhuTat > 0 && tab !== 'khu' && (
         <label className="hang-chon hien-khu-tat">
           <input type="checkbox" checked={hienTat} onChange={(e) => setHienTat(e.target.checked)} />
-          Hiện khu tạm tắt ({soKhuTat} khu) để bật lại
+          Hiện cả {tab === 'o' ? 'ô đỗ' : 'camera'} của khu tạm đóng ({soKhuTat} khu)
         </label>
       )}
       {tin && <ThongBao loai={tin.loai}>{tin.noiDung}</ThongBao>}
       {ch.loi && <ThongBao loai="loi">{ch.loi}</ThongBao>}
       {ch.dangTai && !ch.duLieu && <DangTai />}
-      {chHien && tab === 'khu' && <QuanLyKhu ch={chHien} lam={lam} soXe={soXe.duLieu?.khu ?? []} />}
+      {ch.duLieu && tab === 'khu' && <QuanLyKhu ch={ch.duLieu} lam={lam} soXe={soXe.duLieu?.khu ?? []} />}
       {chHien && tab === 'o' && <QuanLyO ch={chHien} lam={lam} />}
       {chHien && tab === 'camera' && <QuanLyCamera ch={chHien} lam={lam} />}
     </>
@@ -198,10 +209,11 @@ function QuanLyKhu({ ch, lam, soXe }: { ch: CauHinhBai; lam: Lam; soXe: KhuCho[]
               <tr key={k.id}>
                 <td><strong>{k.ten}</strong>{k.maSoDo && <span className="nhan nhan-ma-so-do" title="Mã chấm trên ảnh sơ đồ">{k.maSoDo === 'HAM' ? 'Hầm' : k.maSoDo}</span>}</td>
                 <td>{tenLoaiXe(ch.loaiXe.find((l) => l.id === k.loaiXeId)?.ten ?? k.loaiXeId)}</td>
-                <td>{k.sucChua}</td>
+                <td>{k.sucChua > 0 ? k.sucChua : <span className="nhan" title="Khu chưa đặt sức chứa không được chỉ dẫn xe vào">Chưa đặt</span>}</td>
                 <td><strong>{dangCo(k.id)?.soXe ?? '—'}</strong></td><td>{dangCo(k.id)?.conLai ?? '—'}</td>
                 <td>{k.soO}</td><td>{k.soCamera}</td>
-                <td>{k.dangDung ? <span className="nhan nhan-ok">Đang dùng</span> : <span className="nhan nhan-loi" title="Không chỉ dẫn xe vào, người dùng không thấy">Tạm tắt</span>}</td>
+                <td>{k.dangDung ? <span className="nhan nhan-ok">Đang dùng</span>
+                  : <span className="nhan nhan-loi" title="Không chỉ dẫn xe vào, người dùng không thấy khu này. Bấm Sửa, tích Đang dùng để mở lại.">Tạm đóng</span>}</td>
                 <td className="hang-nut">
                   <button className="nut nut-phu nut-nho" onClick={() => setSua(k)}>Sửa</button>
                   <button className="nut nut-nguy nut-nho" onClick={() => confirm(`Xoá ${k.ten}?`) && lam(() => services.baiXe.xoaKhu(k.id), `Đã xoá ${k.ten}.`)}>Xoá</button>

@@ -9,7 +9,7 @@ Modular Monolith: một API ASP.NET Core trên .NET 10, chia 10 module, mỗi mo
 |---|---|
 | `backend/` | `NhaXe.slnx`, `src/SharedKernel` (IClock, LoiNghiepVu, sự kiện), `src/Api` (Program.cs chỉ lắp ráp, middleware lỗi, phát sự kiện), `src/Modules/` (thêm dần), `tests/NhaXe.Tests` |
 | `frontend/` | React + TypeScript (Vite). `src/app` (route, khung, composition root), `src/shared` (gọi API, giao diện chung), `src/modules/` (thêm dần) |
-| `database/` | `nha-xe.sql` (tạo mới: cấu hình, gói giá, sơ đồ bãi; **không có tài khoản**) + `migrations/V002..V006` (chạy lại nhiều lần vẫn an toàn) |
+| `database/` | `nha-xe.sql` (tạo mới: cấu hình, gói giá, sơ đồ bãi; **không có tài khoản**) + `migrations/V002..V017` (chạy lại nhiều lần vẫn an toàn; V017: 17 khu ô tô A–Q theo sơ đồ, sức chứa 0 để Admin nhập) |
 | `docker/` | Dockerfile API, Dockerfile web, `nginx.conf`, `db-init.sh` |
 | `models/` | File ONNX của Model A, PaddleOCR, PKLot (chép vào khi làm module AI) |
 | `docs/` | Kiến trúc module và hình luồng từng module |

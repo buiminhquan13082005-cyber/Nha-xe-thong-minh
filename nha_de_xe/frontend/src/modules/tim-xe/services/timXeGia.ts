@@ -4,7 +4,7 @@ import type { ITimXeService } from './timXeService';
 /**
  * Dữ liệu GIẢ để duyệt giao diện khi backend chưa có khu R, S, Hầm. Chỉ bật khi chạy dev với VITE_DU_LIEU_GIA=1
  * (xem container.ts). Các hàm khác chuyển thẳng cho service thật.
- * Có cả khu ô tô A, B và khu xe máy mẫu C, D để thấy chúng KHÔNG hiện trên sơ đồ.
+ * Có khu ô tô A, B (hiện chấm vuông A, B trên sơ đồ) và khu xe máy mẫu C, D (không có trên ảnh nên KHÔNG hiện).
  */
 export class GiaTimXeService implements ITimXeService {
   private readonly batDau = Date.now();

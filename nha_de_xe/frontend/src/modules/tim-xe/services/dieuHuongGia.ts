@@ -1,5 +1,6 @@
 import type { DieuHuongCuaToi, DiemBanDo, DuongDiBanDo, DuongRaBanDo, DuongRaCuaToi, KhuCho, PhienDieuHuong, XeRaKhu } from '../models';
-import { KICH_THUOC_ANH, maSoDoCua, type MaSoDo } from '../soDoXeMay';
+// Dữ liệu giả chỉ vẽ sẵn đường cho 3 khu xe máy: khu ô tô không có ở đây (maXeMayCua trả null).
+import { KICH_THUOC_ANH, maXeMayCua as maSoDoCua, type MaXeMay as MaSoDo } from '../soDoBai';
 import type { IDieuHuongService } from './dieuHuongService';
 
 /**

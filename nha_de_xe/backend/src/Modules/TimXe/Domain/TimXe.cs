@@ -3,7 +3,7 @@ using NhaXe.SharedKernel;
 namespace NhaXe.Modules.TimXe.Domain;
 
 // Thực thể và quy tắc của module TimXe (đề cương v10, mục "Chia khu, ghi nhận xe vào khu và tìm xe").
-// Phạm vi hiện tại: XE MÁY (định vị mức khu). Phần ô tô trong khu (PKLot, ô trống) chưa làm.
+// Phạm vi hiện tại: xe máy và ô tô, định vị MỨC KHU. Ô tô tới từng ô (PKLot, ô trống) chưa làm.
 
 public static class TrangThaiGiu
 {
@@ -132,7 +132,7 @@ public static class NguonGhi
     public const string Admin = "ADMIN";
 }
 
-/// <summary>Một lần ghi nhận xe ở khu (bảng lịch sử vi_tri_xe). Xe máy: chỉ mức khu, không có ô.</summary>
+/// <summary>Một lần ghi nhận xe ở khu (bảng lịch sử vi_tri_xe). Chỉ mức khu, không có ô (cả xe máy lẫn ô tô).</summary>
 public class ViTriXe
 {
     public long Id { get; private set; }
@@ -204,7 +204,7 @@ public static class QuyTacKhu
     public record UngVienKhu(int KhuId, int SucChua, int ConLai, double? KhoangCach);
 
     /// <summary>
-    /// Chọn khu khi xe máy qua cổng (quy tắc cố định):
+    /// Chọn khu khi xe qua cổng, trong các khu cùng loại xe (quy tắc cố định):
     /// 1) bỏ khu đã đầy (chỗ còn thực tế ≤ 0); 2) trong các khu "Còn nhiều" (&gt; phanTramSapDay % sức chứa), chọn khu GẦN cổng nhất;
     /// 3) không khu nào "Còn nhiều" thì chọn khu còn NHIỀU CHỖ NHẤT; 4) tất cả đầy: null (không chỉ đường).
     /// Bằng nhau thì khu gần hơn, rồi khu id nhỏ trước. Khu chưa nối đường đi xếp sau cùng khi so khoảng cách.

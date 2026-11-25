@@ -1,4 +1,4 @@
-// Module TimXe (xe máy, định vị mức khu): khớp DTO của NhaXe.Modules.TimXe.Application.
+// Module TimXe (xe máy và ô tô, định vị mức khu): khớp DTO của NhaXe.Modules.TimXe.Application.
 
 export type MucCho = 'CON_NHIEU' | 'SAP_DAY' | 'DAY';
 export type TrangThaiGiu = 'DANG_GIU' | 'DA_VAO' | 'HET_HAN' | 'HUY';
@@ -9,8 +9,10 @@ export interface ChiDan { luotGuiId: number; khuId: number; khu: string; hetHanL
 export interface KhuCho {
   id: number; ten: string; loaiXeId: number; sucChua: number;
   soXe: number; soGiu: number; conLai: number; muc: MucCho; khoangCachTuCong: number | null;
-  /** Mã chấm trên ảnh sơ đồ (R, S, HAM). Backend thêm sau (cột khu_vuc.ma_so_do); chưa có thì frontend suy theo tên. */
+  /** Mã chấm trên ảnh sơ đồ (xe máy R, S, HAM; ô tô A–Q). Cột khu_vuc.ma_so_do; chưa có thì frontend suy theo tên. */
   maSoDo?: string | null;
+  /** false: khu tạm tắt (Admin tắt ở Quản lý bãi): không hiện chấm trên sơ đồ. */
+  dangDung?: boolean;
 }
 
 export interface DiemDuong { nutId: number; ten: string; x: number; y: number }
@@ -24,11 +26,12 @@ export interface XeTimXe {
   xeId: number; bienSo: string; loaiXe: string; trongBai: boolean; thoiGianVao: string | null;
   khuId: number | null; khu: string | null; vaoKhuLuc: string | null; nguonKhu: NguonKhu | null;
   moiVao: ChiDan | null; duong: DuongDi | null;
-  /** false: ô tô, định vị trong khu chưa làm. */
+  /** Xe máy và ô tô đều true (định vị mức khu). false: loại xe khác, không chỉ khu. */
   hoTroDinhVi: boolean;
 }
 
-export interface TimXeCuaToi { bayGio: string; xe: XeTimXe[]; khuXeMay: KhuCho[] }
+/** khuXeMay / khuOTo: khu đang dùng của từng loại (mức chỗ, chọn khu "Đã đỗ xe"). */
+export interface TimXeCuaToi { bayGio: string; xe: XeTimXe[]; khuXeMay: KhuCho[]; khuOTo?: KhuCho[] }
 
 /** Số xe từng khu (mọi loại xe): camera hướng vào +1, camera hướng ra −1. Admin và người dùng cùng xem. */
 export interface SoXeKhu { bayGio: string; khu: KhuCho[] }
@@ -84,8 +87,8 @@ export interface PhienDieuHuong {
   canhBao: { khuId: number; ten: string; luc: string } | null;
 }
 
-/** GET /api/dieu-huong/cua-toi. hetCho: xe máy vừa vào cổng nhưng mọi khu đã đầy (không có phiên). */
-export interface DieuHuongCuaToi { bayGio: string; phien: PhienDieuHuong | null; hetCho: { bienSo: string; luc: string } | null }
+/** GET /api/dieu-huong/cua-toi. hetCho: xe vừa vào cổng nhưng mọi khu cùng loại xe đã đầy (không có phiên). */
+export interface DieuHuongCuaToi { bayGio: string; phien: PhienDieuHuong | null; hetCho: { bienSo: string; luc: string; loaiXe?: string } | null }
 
 /** Đường ngắn nhất từ đầu khu ra Cổng ra Y (GET /api/dieu-huong/duong-ra?tuKhu=). */
 export interface DuongRaBanDo { tuKhuId: number; tongMet: number; diem: DiemBanDo[] }

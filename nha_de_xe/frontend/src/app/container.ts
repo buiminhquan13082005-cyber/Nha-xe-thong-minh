@@ -39,7 +39,7 @@ export interface Services {
   thongBao: IThongBaoService;
   /** Kênh SignalR: thông báo tới ngay, trang tải lại sớm hơn chu kỳ. */
   thoiGianThuc: IKenhThoiGianThuc;
-  // module TimXe (xe máy: chỉ dẫn khu, camera lối vào khu, đối soát)
+  // module TimXe (xe máy và ô tô: chỉ dẫn khu, camera khu hướng vào / hướng ra, đối soát)
   timXe: ITimXeService;
   /** Điều hướng trong bãi: phiên dẫn đường, đổi khu đích, đường đi từ cổng. */
   dieuHuong: IDieuHuongService;

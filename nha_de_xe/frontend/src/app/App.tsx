@@ -29,7 +29,7 @@ export function App() {
           <Route path="/ra-vao" element={<RaVaoPage />} />
           {/* 6. ThongBao (hộp thư khách) */}
           <Route path="/thong-bao" element={<ThongBaoPage />} />
-          {/* 8. TimXe (xe máy: khu đang ở, mời vào khu, đường đi, "Đã đỗ xe", mức chỗ). Ô trống ô tô (PKLot) chưa làm. */}
+          {/* 8. TimXe (xe máy và ô tô, mức khu: khu đang ở, mời vào khu, đường đi, "Đã đỗ xe", mức chỗ). Ô trống từng ô ô tô (PKLot) chưa làm. */}
           <Route path="/tim-xe" element={<TimXePage />} />
           <Route path="/cho-trong" element={<Navigate to="/so-do" replace />} />
           {/* Sơ đồ chỗ trống (người dùng và Admin cùng xem) */}
