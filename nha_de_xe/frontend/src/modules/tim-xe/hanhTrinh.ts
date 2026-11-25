@@ -1,4 +1,4 @@
-import { KICH_THUOC_ANH } from './soDoXeMay';
+import { KICH_THUOC_ANH } from './soDoBai';
 
 const { rong: W, cao: H } = KICH_THUOC_ANH;
 

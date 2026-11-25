@@ -5,16 +5,19 @@ import { useNgheThongBao } from '@/shared/realtime/useNgheThongBao';
 import { Link } from 'react-router-dom';
 import { useApp } from '@/app/AppContext';
 import { soId, toSang, useKhiMoTuThongBao, useThamSoMotLan, useVeKhongMoDuoc } from '@/shared/ui/useDichDen';
-import { dinhDangNgay, hienThiBienSo } from '@/shared/utils/format';
+import { dinhDangNgay, hienThiBienSo, tenLoaiXe } from '@/shared/utils/format';
+import type { LoaiXeMa } from '@/shared/models';
 import type { DuongRaBanDo, KhuCho, XeTimXe } from '../models';
 import { TEN_NGUON } from '../models';
 import { MucChoKhu } from '../components/MucChoKhu';
 import { BanDoBai } from '../components/BanDoBai';
 import { DemNguocGiuCho } from '../components/DemNguocGiuCho';
 import { moManHinhDanDuong, moManHinhDuongRa } from '../components/DieuHuongToanCuc';
+import { LOAI_O_TO, LOAI_XE_MAY } from '../soDoBai';
 
 /**
- * Trang khách "Tìm xe" (xe máy, mức khu): sau khi qua cổng vào thấy "Mời vào khu X" kèm đường đi và thời gian giữ chỗ;
+ * Trang khách "Tìm xe" (xe máy và ô tô, mức khu): sau khi qua cổng vào thấy "Mời vào khu X" kèm đường đi và thời gian giữ chỗ;
+ * mỗi loại xe chỉ được chỉ tới khu của loại đó (xe máy R, S, Hầm; ô tô A–Q);
  * khi camera lối vào khu ghi nhận thì thấy xe đang ở khu nào, từ lúc nào. "Đã đỗ xe" là xác nhận phụ:
  * camera đã ghi khu khác thì giữ theo camera và báo quản lý. Tải lại khi có thông báo và mỗi 10 giây.
  */
@@ -24,6 +27,13 @@ export function TimXePage() {
   useNgheThongBao((s) => { if (['VAO', 'RA', 'KHU'].includes(s.loai)) void tx.taiLai(); });
   const trongBai = tx.duLieu?.xe.filter((x) => x.trongBai) ?? [];
   const ngoaiBai = tx.duLieu?.xe.filter((x) => !x.trongBai) ?? [];
+  const khuXeMay = tx.duLieu?.khuXeMay ?? [];
+  const khuOTo = tx.duLieu?.khuOTo ?? [];
+  /** Khu cùng loại với xe (chọn khu "Đã đỗ xe", chấm trên bản đồ của thẻ). */
+  const khuCua = (x: XeTimXe) => (x.loaiXe === 'O_TO' ? khuOTo : khuXeMay);
+  // Mức chỗ: chỉ loại xe tài khoản có (chưa có xe nào thì hiện xe máy)
+  const coOTo = tx.duLieu?.xe.some((x) => x.loaiXe === 'O_TO') ?? false;
+  const coXeMay = (tx.duLieu?.xe.some((x) => x.loaiXe !== 'O_TO') ?? false) || !coOTo;
 
   // Mở từ thông báo: ?xe=45 (xe đang đỗ ở khu nào), ?danDuong=<lượt gửi> (mở màn hình chỉ đường)
   // hoặc ?duongRa=<lượt gửi> (xe vừa ra khỏi khu: mở màn hình đường ra cổng)
@@ -84,10 +94,20 @@ export function TimXePage() {
         <>
           {trongBai.length === 0
             ? <p className="mo">Không có xe nào của bạn đang ở trong bãi.</p>
-            : <div className="luoi-xe">{trongBai.map((x) => <TheTimXe key={x.xeId} x={x} bayGio={tx.duLieu!.bayGio} khu={tx.duLieu!.khuXeMay} khiXong={() => tx.taiLai()} />)}</div>}
+            : <div className="luoi-xe">{trongBai.map((x) => <TheTimXe key={x.xeId} x={x} bayGio={tx.duLieu!.bayGio} khu={khuCua(x)} khiXong={() => tx.taiLai()} />)}</div>}
 
-          <h2>Mức chỗ các khu xe máy</h2>
-          <MucChoKhu khu={tx.duLieu.khuXeMay} />
+          {coXeMay && (
+            <>
+              <h2>Mức chỗ các khu xe máy</h2>
+              <MucChoKhu khu={khuXeMay} />
+            </>
+          )}
+          {coOTo && (
+            <>
+              <h2>Mức chỗ các khu ô tô</h2>
+              <MucChoKhu khu={khuOTo} loai="ô tô" />
+            </>
+          )}
 
           {ngoaiBai.length > 0 && (
             <>
@@ -130,6 +150,7 @@ function TheTimXe({ x, bayGio, khu, khiXong }: { x: XeTimXe; bayGio: string; khu
   }
 
   const dangGiu = x.moiVao?.trangThai === 'DANG_GIU' && !x.khuId;
+  const loaiXeId = x.loaiXe === 'O_TO' ? LOAI_O_TO : LOAI_XE_MAY;
   // Xe đã chuyển khu (camera ghi khu mới) thì đường ra cũ không còn đúng: không vẽ nữa
   const duongRaHien = duongRa && x.khuId && duongRa.tuKhuId === x.khuId ? duongRa : null;
   return (
@@ -137,15 +158,15 @@ function TheTimXe({ x, bayGio, khu, khiXong }: { x: XeTimXe; bayGio: string; khu
       <div className="xe-dau">
         <div>
           <div className="bien-so">{hienThiBienSo(x.bienSo)}</div>
-          <div className="mo">Vào bãi {dinhDangNgay(x.thoiGianVao)}</div>
+          <div className="mo">{tenLoaiXe(x.loaiXe as LoaiXeMa)} · vào bãi {dinhDangNgay(x.thoiGianVao)}</div>
         </div>
-        {!x.hoTroDinhVi ? <span className="nhan">Ô tô</span>
+        {!x.hoTroDinhVi ? <span className="nhan">Chưa chỉ khu</span>
           : x.khuId ? <span className="nhan nhan-ok">Đã định vị</span>
           : dangGiu ? <span className="nhan nhan-cho">Đang giữ chỗ</span>
           : <span className="nhan nhan-loi">Chưa rõ khu</span>}
       </div>
 
-      {!x.hoTroDinhVi && <p className="mo">Định vị trong khu ô tô chưa hỗ trợ ở phiên bản này.</p>}
+      {!x.hoTroDinhVi && <p className="mo">Loại xe này chưa được chỉ khu trong bãi.</p>}
 
       {x.hoTroDinhVi && x.khuId && (
         <div className="vi-tri-xe">
@@ -169,12 +190,12 @@ function TheTimXe({ x, bayGio, khu, khiXong }: { x: XeTimXe; bayGio: string; khu
 
       {duongRaHien ? (
         <>
-          <BanDoBai khu={khu} khuChonId={x.khuId} duong={duongRaHien} nhanCuoi="Cổng ra" />
+          <BanDoBai khu={khu} khuChonId={x.khuId} duong={duongRaHien} nhanCuoi="Cổng ra" loaiXeId={loaiXeId} />
           <p className="mo">Đường ra cổng từ {x.khu}: khoảng <b>{Math.round(duongRaHien.tongMet)} m</b></p>
         </>
       ) : x.duong && (
         <BanDoBai khu={khu} khuDichId={x.duong.khuId} hienViTri={!x.khuId}
-                  duong={x.khuId ? null : x.duong} />
+                  duong={x.khuId ? null : x.duong} loaiXeId={loaiXeId} />
       )}
 
       {x.hoTroDinhVi && (

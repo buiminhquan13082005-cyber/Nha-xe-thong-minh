@@ -4,7 +4,7 @@ import { SoChay } from '@/shared/ui/SoChay';
 import { duongSvg, thoiGianChay, tinhHanhTrinh } from '../hanhTrinh';
 import type { DuongDiBanDo, KhuCho } from '../models';
 import { TEN_MUC } from '../models';
-import { CONG_VAO_X, ghepKhuXeMay, KHU_XE_MAY_TREN_SO_DO, KICH_THUOC_ANH } from '../soDoXeMay';
+import { CONG_VAO_X, ghepKhuTrenSoDo, KHU_TREN_SO_DO, KICH_THUOC_ANH, LOAI_O_TO, LOAI_XE_MAY } from '../soDoBai';
 
 const { rong: W, cao: H } = KICH_THUOC_ANH;
 
@@ -24,11 +24,12 @@ function viTriMuiTen(diem: { x: number; y: number }[], buoc = 46) {
 }
 
 /**
- * Ảnh "Phương án bố trí bãi đỗ xe" + 3 chấm khu xe máy (R, S, Hầm) + đường đi vẽ bằng SVG đè lên ảnh.
- * SVG dùng viewBox đúng kích thước gốc của ảnh nên co giãn cùng ảnh, nét vẽ không méo.
+ * Ảnh "Phương án bố trí bãi đỗ xe" + chấm khu xe máy (R, S, Hầm; chấm tròn) và khu ô tô (A–Q; chấm vuông)
+ * + đường đi vẽ bằng SVG đè lên ảnh. SVG dùng viewBox đúng kích thước gốc của ảnh nên co giãn cùng ảnh, nét vẽ không méo.
  * onChamKhu có thì chấm là nút bấm được (người dùng); không có thì chỉ xem (Admin).
+ * loaiXeId có (1 ô tô, 2 xe máy): chỉ hiện chấm khu của loại xe đó, icon chạy trên đường là ô tô hay xe máy.
  */
-export function BanDoBai({ khu, duong, khuDichId, khuChonId, hienViTri = false, viTri = CONG_VAO_X, nhanCuoi, onChamKhu, children }: {
+export function BanDoBai({ khu, duong, khuDichId, khuChonId, hienViTri = false, viTri = CONG_VAO_X, nhanCuoi, onChamKhu, loaiXeId, children }: {
   khu: KhuCho[] | undefined;
   /** Đường vẽ trên sơ đồ (đường vào khu hoặc đường ra cổng): chỉ cần các điểm. */
   duong?: Pick<DuongDiBanDo, 'diem'> | null;
@@ -41,9 +42,15 @@ export function BanDoBai({ khu, duong, khuDichId, khuChonId, hienViTri = false, 
   /** Nhãn ghim ở điểm cuối đường (ví dụ "Cổng ra Y"), khi điểm đến không phải một khu. */
   nhanCuoi?: string;
   onChamKhu?: (k: KhuCho) => void;
+  /** Chỉ hiện chấm của một loại xe (xe đang được dẫn đường / xe trong thẻ Tìm xe). Không có: hiện cả hai loại. */
+  loaiXeId?: number | null;
   children?: ReactNode;
 }) {
-  const theoMa = ghepKhuXeMay(khu);
+  const theoMa = ghepKhuTrenSoDo(khu);
+  const chiLoai = loaiXeId == null ? null : loaiXeId === LOAI_O_TO ? 'O_TO' : 'XE_MAY';
+  const cham = KHU_TREN_SO_DO.filter((c) => !chiLoai || c.loai === chiLoai);
+  // Icon chạy trên đường: theo loại xe được truyền, không có thì theo loại của khu đích
+  const xeOTo = (loaiXeId ?? khu?.find((k) => k.id === khuDichId)?.loaiXeId ?? LOAI_XE_MAY) === LOAI_O_TO;
   const diem = duong?.diem ?? [];
   const toaDo = diem.map((d) => `${(d.x * W).toFixed(1)},${(d.y * H).toFixed(1)}`).join(' ');
   const hanhTrinh = tinhHanhTrinh(diem);
@@ -65,14 +72,24 @@ export function BanDoBai({ khu, duong, khuDichId, khuChonId, hienViTri = false, 
               ))}
             </g>
             {hanhTrinh && (
-              // Icon xe máy chạy dọc đường từ cổng tới khu, dừng ở đích một nhịp rồi chạy lại
+              // Icon xe (xe máy hoặc ô tô) chạy dọc đường từ cổng tới khu, dừng ở đích một nhịp rồi chạy lại
               <g className="xe-chay">
                 <animateMotion dur={`${thoiGianChay(hanhTrinh).toFixed(2)}s`} repeatCount="indefinite" path={duongSvg(hanhTrinh)}
                   keyPoints="0;1;1" keyTimes="0;0.82;1" calcMode="linear" begin="0.9s" fill="freeze" />
                 <circle r="8.5" className="xe-chay-nen" />
-                <circle cx="-3.4" cy="2.2" r="2" className="xe-chay-net" />
-                <circle cx="3.4" cy="2.2" r="2" className="xe-chay-net" />
-                <path d="M -3.4 2.2 L -1 -1.2 L 2.2 -1.2 L 3.4 2.2 M 2.2 -1.2 L 1.4 -3.6 L 3.2 -3.6" className="xe-chay-net" />
+                {xeOTo ? (
+                  <>
+                    <path d="M -5 1.8 L -5 -0.6 L -3.2 -1.2 L -1.8 -3.6 L 2 -3.6 L 3.4 -1.2 L 5 -0.6 L 5 1.8 Z" className="xe-chay-net" />
+                    <circle cx="-2.8" cy="2.4" r="1.4" className="xe-chay-net" />
+                    <circle cx="2.8" cy="2.4" r="1.4" className="xe-chay-net" />
+                  </>
+                ) : (
+                  <>
+                    <circle cx="-3.4" cy="2.2" r="2" className="xe-chay-net" />
+                    <circle cx="3.4" cy="2.2" r="2" className="xe-chay-net" />
+                    <path d="M -3.4 2.2 L -1 -1.2 L 2.2 -1.2 L 3.4 2.2 M 2.2 -1.2 L 1.4 -3.6 L 3.2 -3.6" className="xe-chay-net" />
+                  </>
+                )}
               </g>
             )}
           </g>
@@ -95,15 +112,19 @@ export function BanDoBai({ khu, duong, khuDichId, khuChonId, hienViTri = false, 
         </>
       )}
 
-      {KHU_XE_MAY_TREN_SO_DO.map((c) => {
+      {cham.map((c) => {
         const k = theoMa.get(c.ma);
-        const moTa = k ? `${c.ten}: còn ${k.conLai}/${k.sucChua} chỗ (${TEN_MUC[k.muc]})` : `${c.ten}: chưa có số liệu`;
+        // Khu chưa đặt sức chứa (khu ô tô mới thêm ở V017): xám, như chưa có số liệu
+        const coSo = !!k && k.sucChua > 0;
+        const moTa = !k ? `${c.ten}: chưa có số liệu`
+          : !coSo ? `${c.ten}: chưa đặt sức chứa`
+          : `${c.ten}: còn ${k.conLai}/${k.sucChua} chỗ (${TEN_MUC[k.muc]})`;
         const laDich = !!k && k.id === khuDichId;
-        const lop = `diem-khu diem-xe-may muc-${k ? k.muc : 'CHUA'} ${laDich ? 'diem-dich' : ''} ${k && k.id === khuChonId ? 'diem-chon' : ''}`;
-        const noiDung = <><b>{c.nhan}</b>{k && <SoChay gia={k.conLai} />}</>;
+        const lop = `diem-khu ${c.loai === 'O_TO' ? 'diem-o-to' : 'diem-xe-may'} muc-${coSo ? k.muc : 'CHUA'} ${laDich ? 'diem-dich' : ''} ${k && k.id === khuChonId ? 'diem-chon' : ''}`;
+        const noiDung = <><b>{c.nhan}</b>{coSo && <SoChay gia={k.conLai} />}</>;
         const viTri = { left: `${c.x}%`, top: `${c.y}%` };
         return (
-          <div key={c.ma}>
+          <div key={`${c.loai}-${c.ma}`}>
             {laDich && <div className="nhan-ghim nhan-dich" style={viTri}>Điểm đến</div>}
             {onChamKhu && k
               ? <button type="button" className={`${lop} cham-duoc`} style={viTri} title={moTa} aria-label={`${moTa}. Chạm để xem`}

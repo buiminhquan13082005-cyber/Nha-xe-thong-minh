@@ -7,7 +7,7 @@ using NhaXe.SharedKernel;
 namespace NhaXe.Modules.TimXe.Application;
 
 // "Sơ đồ động & điều hướng trong bãi": MỞ RỘNG luồng chọn khu + giữ suất của TimXe (không phải module mới).
-// Phiên điều hướng = suất giữ (giu_cho_khu). Bắt đầu khi xe máy qua cổng (NgheCongTimXe), kết thúc khi camera VÀO của khu
+// Phiên điều hướng = suất giữ (giu_cho_khu). Bắt đầu khi xe máy / ô tô qua cổng (NgheCongTimXe), kết thúc khi camera VÀO của khu
 // thấy xe (XuLyCameraKhuUseCase), hết giờ giữ (HetHanGiuChoUseCase) hoặc xe ra cổng. Không dùng GPS.
 
 public record DiemBanDoDto(double X, double Y, string? Ten);
@@ -17,7 +17,8 @@ public record KhuThucTeDto(int Id, string Ten, DateTime VaoLuc);
 public record CanhBaoKhuDto(int KhuId, string Ten, DateTime Luc);
 public record PhienDieuHuongDto(int Id, int LuotGuiId, int XeId, string BienSo, string TrangThai, DateTime BatDauLuc, DateTime HetHanLuc,
                                 KhuChoDto KhuDich, int KhuGoiYId, KhuThucTeDto? KhuThucTe, DuongDiBanDoDto? Duong, CanhBaoKhuDto? CanhBao);
-public record HetChoDto(string BienSo, DateTime Luc);
+/// <param name="LoaiXe">XE_MAY / O_TO: app báo "Bãi xe máy đã hết chỗ" hay "Bãi ô tô đã hết chỗ".</param>
+public record HetChoDto(string BienSo, DateTime Luc, string LoaiXe = LoaiXeMa.XeMay);
 public record DieuHuongCuaToiDto(DateTime BayGio, PhienDieuHuongDto? Phien, HetChoDto? HetCho);
 public record DoiKhuDichLenh(int KhuId);
 /// <summary>Đường từ khu ra Cổng ra Y, toạ độ theo tỉ lệ ảnh sơ đồ (0..1).</summary>
@@ -110,8 +111,8 @@ public class LayDuongDiUseCase(IBaiXeModule baiXe)
 }
 
 /// <summary>
-/// Phiên điều hướng gần nhất của các xe máy tài khoản được dùng (đang trong bãi), kèm đường đi khi đang dẫn.
-/// hetCho: xe máy vừa qua cổng (≤ 10 phút) mà không có suất nào (mọi khu đã đầy lúc vào) để app báo "Bãi xe máy đã hết chỗ".
+/// Phiên điều hướng gần nhất của các xe (xe máy, ô tô) tài khoản được dùng (đang trong bãi), kèm đường đi khi đang dẫn.
+/// hetCho: xe vừa qua cổng (≤ 10 phút) mà không có suất nào (mọi khu cùng loại đã đầy lúc vào) để app báo "Bãi … đã hết chỗ".
 /// </summary>
 public class LayDieuHuongCuaToiUseCase(IGoiChoModule goiCho, ICongRaVaoModule cong, IBaiXeModule baiXe, ITimXeRepository repo,
                                        LayMucChoUseCase mucCho, IClock clock)
@@ -123,9 +124,9 @@ public class LayDieuHuongCuaToiUseCase(IGoiChoModule goiCho, ICongRaVaoModule co
         var bayGio = clock.BayGio;
         var xe = await goiCho.LayXeDuocDungAsync(taiKhoanId, ct);
         var tt = await goiCho.LayTinhTrangXeAsync(xe.Select(x => x.XeId), ct);
-        var xeMay = tt.Values.Where(t => t.LoaiXe == LoaiXeMa.XeMay).ToDictionary(t => t.XeId);
-        if (xeMay.Count == 0) return new(bayGio, null, null);
-        var luot = (await cong.LayLuotGuiDangMoCuaXeAsync(xeMay.Keys, ct)).Values.ToList();
+        var dinhVi = tt.Values.Where(t => LoaiXeMa.HoTroDinhVi(t.LoaiXe)).ToDictionary(t => t.XeId);
+        if (dinhVi.Count == 0) return new(bayGio, null, null);
+        var luot = (await cong.LayLuotGuiDangMoCuaXeAsync(dinhVi.Keys, ct)).Values.ToList();
         var giu = await repo.LayGiuGanNhatAsync(luot.Select(l => l.LuotGuiId).ToList(), ct);
 
         var g = giu.Values.OrderByDescending(x => x.BatDauLuc).ThenByDescending(x => x.Id).FirstOrDefault();
@@ -133,16 +134,16 @@ public class LayDieuHuongCuaToiUseCase(IGoiChoModule goiCho, ICongRaVaoModule co
         if (g is not null)
         {
             var l = luot.First(x => x.LuotGuiId == g.LuotGuiId);
-            phien = await TaoDtoAsync(g, l.XeId, xeMay[l.XeId].BienSo, bayGio, ct);
+            phien = await TaoDtoAsync(g, l.XeId, dinhVi[l.XeId].BienSo, bayGio, ct);
         }
         var het = luot.Where(l => !giu.ContainsKey(l.LuotGuiId) && l.ViTriKhuId is null && bayGio - l.ThoiGianVao <= HetChoTrong)
                       .OrderByDescending(l => l.ThoiGianVao).FirstOrDefault();
-        return new(bayGio, phien, het is null ? null : new HetChoDto(xeMay[het.XeId].BienSo, het.ThoiGianVao));
+        return new(bayGio, phien, het is null ? null : new HetChoDto(dinhVi[het.XeId].BienSo, het.ThoiGianVao, dinhVi[het.XeId].LoaiXe));
     }
 
     internal async Task<PhienDieuHuongDto> TaoDtoAsync(GiuChoKhu g, int xeId, string bienSo, DateTime bayGio, CancellationToken ct)
     {
-        var khu = (await mucCho.ThucHienAsync(false, ct: ct)).ToDictionary(k => k.Id);
+        var khu = (await mucCho.ThucHienAsync(null, ct: ct)).ToDictionary(k => k.Id);
         var trangThai = TrangThaiPhien.Tu(g, bayGio);
         KhuChoDto KhuCho(int id) => khu.GetValueOrDefault(id) ?? new KhuChoDto(id, $"Khu #{id}", 0, 0, 0, 0, 0, MucCho.Day, null);
         var dangDan = trangThai == TrangThaiPhien.DangDan;
@@ -155,7 +156,7 @@ public class LayDieuHuongCuaToiUseCase(IGoiChoModule goiCho, ICongRaVaoModule co
 }
 
 /// <summary>
-/// Người dùng tự chọn khu khác khi đang được dẫn đường (khu hệ thống chọn chỉ là GỢI Ý). Khu mới phải là khu xe máy đang dùng
+/// Người dùng tự chọn khu khác khi đang được dẫn đường (khu hệ thống chọn chỉ là GỢI Ý). Khu mới phải là khu CÙNG LOẠI XE đang dùng
 /// và còn chỗ thực tế (đã trừ suất đang giữ). Suất giữ CHUYỂN sang khu mới, GIỮ NGUYÊN thời hạn còn lại.
 /// Khu mới là khu đích chính thức: camera VÀO của khu đó thấy xe thì phiên thành DA_TOI.
 /// </summary>
@@ -174,10 +175,10 @@ public class DoiKhuDichUseCase(IGoiChoModule goiCho, ICongRaVaoModule cong, ITim
             throw new LoiNghiepVu(LoaiLoi.XungDot, "PHIEN_DA_KET_THUC", "Không có phiên dẫn đường nào đang chạy để đổi khu.");
 
         var tt = (await goiCho.LayTinhTrangXeAsync(new[] { l.XeId }, ct))[l.XeId];
-        var khu = (await mucCho.ThucHienAsync(false, ct: ct)).FirstOrDefault(k => k.Id == khuId)
+        var khu = (await mucCho.ThucHienAsync(null, ct: ct)).FirstOrDefault(k => k.Id == khuId)
                   ?? throw new LoiNghiepVu(LoaiLoi.KhongTimThay, "KHONG_TIM_THAY_KHU", "Không tìm thấy khu.");
         if (khu.LoaiXeId != tt.LoaiXeId || !khu.DangDung)
-            throw new LoiNghiepVu(LoaiLoi.DuLieuKhongHopLe, "SAI_LOAI_KHU", $"{khu.Ten} không nhận xe máy lúc này.");
+            throw new LoiNghiepVu(LoaiLoi.DuLieuKhongHopLe, "SAI_LOAI_KHU", $"{khu.Ten} không nhận {LoaiXeMa.Ten(tt.LoaiXe)} lúc này.");
         if (khuId != g.KhuId)
         {
             if (khu.ConLai <= 0)

@@ -32,7 +32,7 @@ export const NHAN_LOAI: Record<string, { ten: string; mau: 'ok' | 'cho' | 'loi' 
   HUY_GOI: { ten: 'Huỷ gói', mau: 'cho' },
   XE_BI_GO: { ten: 'Xe bị gỡ', mau: 'loi' },
   KHACH_HUY: { ten: 'Khách huỷ gói', mau: 'cho' },
-  KHU: { ten: 'Khu xe máy', mau: 'tin' },
+  KHU: { ten: 'Khu đỗ xe', mau: 'tin' },
   NHOM: { ten: 'Nhóm gia đình', mau: 'tin' },
   DOI_SOAT: { ten: 'Đối soát khu', mau: 'cho' },
   CHO_THANH_TOAN: { ten: 'Chờ thanh toán', mau: 'cho' },

@@ -98,6 +98,7 @@ public class TimXeTests
         _goiCho.Xe[1] = new(1, "30A12345", 1, "O_TO", 2, _clock.BayGio.AddDays(9), 0, 0);
         _goiCho.Xe[2] = new(2, "29B112345", 2, "XE_MAY", 2, _clock.BayGio.AddDays(9), 0, 0);
         _goiCho.Xe[3] = new(3, "29B198765", 2, "XE_MAY", 4, _clock.BayGio.AddDays(9), 0, 0);
+        _goiCho.NguoiDung[1] = new() { 2 };
         _goiCho.NguoiDung[2] = new() { 2, 3 };
         _goiCho.NguoiDung[3] = new() { 4 };
         _goiCho.SucChua.AddRange([new(1, "O_TO", 4, 0, 0, 4), new(2, "XE_MAY", 4, 0, 0, 4)]);
@@ -142,8 +143,8 @@ public class TimXeTests
         await VaoCong(2, 10);
         Assert.Equal(3, Assert.Single(_repo.Giu).KhuId);
 
-        Assert.DoesNotContain(await Muc().ThucHienAsync(true), k => k.Id == 4);           // trang người dùng: ẩn
-        Assert.False((await Muc().ThucHienAsync(false)).Single(k => k.Id == 4).DangDung);  // sơ đồ / Admin: còn, kèm cờ
+        Assert.DoesNotContain(await Muc().ThucHienAsync("XE_MAY"), k => k.Id == 4);       // trang người dùng: ẩn
+        Assert.False((await Muc().ThucHienAsync(null)).Single(k => k.Id == 4).DangDung);   // sơ đồ / Admin: còn, kèm cờ
         Assert.Equal("KHU_DANG_TAT", (await Assert.ThrowsAsync<LoiNghiepVu>(() => DaDo().ThucHienAsync(2, 2, 4))).Ma);
     }
 
@@ -151,15 +152,55 @@ public class TimXeTests
     public async Task MaSoDo_TraVeTrongMucCho()
     {
         _bai.Khu.Add(new(10, "Khu R", 2, 60, 40, "R"));
-        Assert.Equal("R", (await Muc().ThucHienAsync(true)).Single(k => k.Id == 10).MaSoDo);
+        Assert.Equal("R", (await Muc().ThucHienAsync("XE_MAY")).Single(k => k.Id == 10).MaSoDo);
     }
 
     [Fact]
-    public async Task OTo_ChuaLamPhanChiKhu()
+    public async Task MucCho_TheoLoaiXe_TachKhuXeMayVaKhuOTo()
+    {
+        Assert.Equal([3, 4], (await Muc().ThucHienAsync("XE_MAY")).Select(k => k.Id).Order());
+        Assert.Equal([1], (await Muc().ThucHienAsync("O_TO")).Select(k => k.Id));
+        Assert.Equal([1, 3, 4], (await Muc().ThucHienAsync(null)).Select(k => k.Id).Order());
+    }
+
+    [Fact]
+    public async Task OTo_VaoCong_ChiChonKhuOTo_GiuSuat_BaoNguoiDung()
+    {
+        // Khu D (xe máy) gần cổng hơn nhưng không cùng loại: ô tô chỉ được mời vào khu ô tô
+        await VaoCong(1, 10);
+        var g = Assert.Single(_repo.Giu);
+        Assert.Equal((1, _clock.BayGio.AddMinutes(5)), (g.KhuId, g.HetHanLuc));
+        Assert.Contains(_tb.DaGui, t => t.TaiKhoanId == 2 && t.NoiDung.Contains("mời vào Khu A"));
+    }
+
+    [Fact]
+    public async Task OTo_QuaCameraKhuOTo_GhiVaoKhu_KhongBaoSaiLoai()
     {
         await VaoCong(1, 10);
+        var kq = await Camera().ThucHienAsync(1, "30A12345", null, null);
+        Assert.Equal(("DA_GHI", "VAO"), (kq.KetQua, kq.Huong));
+        Assert.Equal(1, _cong.TheoXe[1].ViTriKhuId);
+        Assert.DoesNotContain(_tb.DaGui, t => t.NoiDung.Contains("không dành cho loại xe"));
+        Assert.Equal("DA_VAO", _repo.Giu.Single().TrangThai);
+    }
+
+    [Fact]
+    public async Task OTo_MoiKhuOToDay_BaoBaiOToHetCho()
+    {
+        _bai.Khu[0] = _bai.Khu[0] with { SucChua = 0 };
+        await VaoCong(1, 10);
         Assert.Empty(_repo.Giu);
-        Assert.Empty(_tb.DaGui);
+        Assert.Contains(_tb.DaGui, t => t.TaiKhoanId == 2 && t.NoiDung.Contains("bãi ô tô đã hết chỗ"));
+        Assert.Contains(_tb.DaGui, t => t.TaiKhoanId is null && t.NoiDung.Contains("mọi khu ô tô đã đầy"));
+    }
+
+    [Fact]
+    public async Task OTo_DaDoXe_GhiKhuOTo_KhuXeMayThiSaiLoai()
+    {
+        _cong.CoXeTrongBai(1, 10);
+        Assert.Equal("SAI_LOAI_KHU", (await Assert.ThrowsAsync<LoiNghiepVu>(() => DaDo().ThucHienAsync(2, 1, 3))).Ma);
+        Assert.Equal("Đã ghi xe ở Khu A.", await DaDo().ThucHienAsync(2, 1, 1));
+        Assert.Equal(1, _cong.TheoXe[1].ViTriKhuId);
     }
 
     [Fact]
@@ -350,6 +391,20 @@ public class TimXeTests
         Assert.Equal(("Khu C", "CAMERA_KHU"), (sau.Khu, sau.NguonKhu));
         Assert.Null(sau.MoiVao);
         Assert.Empty((await uc.ThucHienAsync(4)).Xe); // tài khoản 4 không được dùng xe 2
+    }
+
+    [Fact]
+    public async Task TimXeCuaToi_OTo_HoTroDinhVi_KemDanhSachKhuOTo()
+    {
+        _goiCho.TaiCong["30A12345"] = new XeTaiCong(1, "30A12345", "O_TO", 2, true, true, null, 0);
+        await VaoCong(1, 10);
+        var kq = await new TimXeCuaToiUseCase(_goiCho, _cong, _bai, _repo, Muc(), _clock).ThucHienAsync(2);
+        var oto = kq.Xe.Single(x => x.XeId == 1);
+        Assert.True(oto.HoTroDinhVi);
+        Assert.Equal("Khu A", oto.MoiVao!.Khu);
+        Assert.NotNull(oto.Duong);
+        Assert.Equal([1], kq.KhuOTo.Select(k => k.Id));
+        Assert.DoesNotContain(kq.KhuXeMay, k => k.Id == 1);
     }
 
     [Theory]

@@ -5,7 +5,7 @@ using NhaXe.Modules.TimXe.Application;
 
 namespace NhaXe.Api.Modules.TimXe;
 
-/// <summary>Khách: tìm xe (khu, giờ vào khu, đường đi), "Đã đỗ xe", mức chỗ các khu xe máy.</summary>
+/// <summary>Khách: tìm xe (khu, giờ vào khu, đường đi), "Đã đỗ xe", mức chỗ các khu xe máy và ô tô.</summary>
 [ApiController]
 [Authorize(Roles = "USER")]
 [Route("api/tim-xe")]

@@ -42,7 +42,7 @@ builder.Services.AddNhomGiaDinhModule(connStr); // quản lý nhóm; GoiCho hỏ
 builder.Services.AddCongRaVaoModule(connStr, TimeSpan.FromSeconds(5), thuMucTep);
 builder.Services.AddThongBaoModule(connStr);    // hộp thư người dùng + Admin; module khác gửi qua IThongBaoModule
 builder.Services.AddBaiXeModule(connStr);       // sơ đồ bãi, quản lý khu / ô / camera, chỗ trống, đường đi (Dijkstra)
-// TimXe (xe máy): nghe XeDaVao để chỉ khu + giữ suất 5 phút; camera lối vào khu; tìm xe. Trả suất quá hạn mỗi 30 giây.
+// TimXe (xe máy, ô tô): nghe XeDaVao để chỉ khu + giữ suất 5 phút; camera lối vào khu; tìm xe. Trả suất quá hạn mỗi 30 giây.
 NhaXe.Modules.TimXe.Infrastructure.DependencyInjection.AddTimXeModule(builder.Services, connStr, TimeSpan.FromSeconds(30));
 NhaXe.Modules.BaoCao.Application.DependencyInjection.AddBaoCaoModule(builder.Services); // chỉ hỏi module khác qua Contracts
 // Thông báo thời gian thực (SignalR): ThongBao lưu hộp thư xong thì đẩy tới máy đang mở app

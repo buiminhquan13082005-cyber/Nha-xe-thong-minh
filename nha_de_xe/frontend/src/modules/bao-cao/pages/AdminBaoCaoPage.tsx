@@ -70,7 +70,7 @@ export function AdminBaoCaoPage() {
               </dl>
             </section>
             <section className="the">
-              <h3>Định vị khu xe máy</h3>
+              <h3>Định vị khu (xe máy, ô tô)</h3>
               <dl className="so-lieu">
                 <div><dt>Camera lối vào khu ghi</dt><dd>{d.dinhVi.soCameraGhi}</dd></div>
                 <div><dt>Người dùng bấm "Đã đỗ xe"</dt><dd>{d.dinhVi.soNguoiDungBao}</dd></div>

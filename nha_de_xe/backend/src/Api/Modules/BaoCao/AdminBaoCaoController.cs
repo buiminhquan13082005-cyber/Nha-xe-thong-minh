@@ -10,7 +10,7 @@ namespace NhaXe.Api.Modules.BaoCao;
 [Tags("9. BaoCao · Admin")]
 public class AdminBaoCaoController : ControllerBase
 {
-    /// <summary>Lượt vào / ra, doanh thu, tỉ lệ định vị khu xe máy, tỉ lệ AI tự đọc biển. Mặc định: từ 00:00 hôm nay.</summary>
+    /// <summary>Lượt vào / ra, doanh thu, tỉ lệ định vị khu (xe máy, ô tô), tỉ lệ AI tự đọc biển. Mặc định: từ 00:00 hôm nay.</summary>
     [HttpGet]
     public Task<BaoCaoDto> Lay([FromQuery] DateTime? tu, [FromQuery] DateTime? den, [FromServices] LayBaoCaoUseCase uc, CancellationToken ct) =>
         uc.ThucHienAsync(tu, den, ct);

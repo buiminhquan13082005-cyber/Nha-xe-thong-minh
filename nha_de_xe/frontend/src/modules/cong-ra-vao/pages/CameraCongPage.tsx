@@ -290,7 +290,7 @@ function KhungKetQua({ h, chiDan, gio, chon, boQua }: {
           {chiDan && (
             <div className="mc-khu">
               <div className="mc-khu-chu">{chiDan.khu}</div>
-              <div><b>Khu xe máy</b><div className="mo">Giữ chỗ tới {gioPhut(chiDan.hetHanLuc)}</div></div>
+              <div><b>Khu được chỉ</b><div className="mo">Giữ chỗ tới {gioPhut(chiDan.hetHanLuc)}</div></div>
               <div className="mc-mui">➜</div>
             </div>
           )}

@@ -117,11 +117,31 @@ public class DieuHuongTests
     }
 
     [Fact]
-    public async Task OTo_VaoCong_KhongTaoPhienDieuHuong()
+    public async Task OTo_VaoCong_TaoPhienDanDuongToiKhuOTo()
     {
         await VaoCong(1, 10);
+        Assert.Equal(1, Assert.Single(_repo.Giu).KhuId);
+        var p = (await Phien())!;
+        Assert.Equal(("DANG_DAN", 1, 1), (p.TrangThai, p.KhuDich.Id, p.XeId));
+    }
+
+    [Fact]
+    public async Task OTo_MoiKhuOToDay_HetChoGhiLoaiXe()
+    {
+        XeKhacDangDo(1, 4);
+        await VaoCong(1, 10);
         Assert.Empty(_repo.Giu);
-        Assert.Null(await Phien());
+        var du = await CuaToi().ThucHienAsync(2);
+        Assert.Equal(("30A12345", "O_TO"), (du.HetCho!.BienSo, du.HetCho.LoaiXe));
+    }
+
+    [Fact]
+    public async Task OTo_DoiKhuDich_SangKhuXeMay_SaiLoai()
+    {
+        await VaoCong(1, 10);
+        var e = await Assert.ThrowsAsync<LoiNghiepVu>(() => DoiKhu().ThucHienAsync(2, R));
+        Assert.Equal("SAI_LOAI_KHU", e.Ma);
+        Assert.Contains("không nhận ô tô", e.Message);
     }
 
     // ---------------- 2.2 Dijkstra trên đồ thị mốc thật ----------------
@@ -136,11 +156,15 @@ public class DieuHuongTests
         var (kc, truoc) = DuongNganNhat.Tinh(cong.Id, canh);
         string[] Ma(int khu) => DuongNganNhat.Duong(cong.Id, nut.Single(n => n.KhuId == khu).Id, truoc)!
             .Select(id => g.CacNut.Single(n => n.Id == id).Ma).ToArray();
-        Assert.Equal(["CONG_X", "NGA_BA_X1", "GOC_TRUC", "TRUC_GIUA", "RE_HAM", "LOI_HAM", "KHU_HAM"], Ma(HAM));
-        Assert.Equal(["CONG_X", "NGA_BA_X1", "GOC_TREN", "DUONG_R", "DAU_R", "KHU_R"], Ma(R));
+        // Nút rẽ vào khu ô tô (DUONG_*) nằm thẳng hàng trên đường cũ: đường xe máy chỉ thêm điểm, không đổi hướng
+        Assert.Equal(["CONG_X", "DUONG_C", "DUONG_D", "NGA_BA_X1", "GOC_TRUC", "DUONG_FJ", "TRUC_GIUA", "DUONG_K", "DUONG_G", "DUONG_H",
+                      "RE_HAM", "LOI_HAM", "KHU_HAM"], Ma(HAM));
+        Assert.Equal(["CONG_X", "DUONG_C", "DUONG_D", "NGA_BA_X1", "GOC_TREN", "DUONG_R", "DAU_R", "KHU_R"], Ma(R));
         Assert.Equal("KHU_S", Ma(S)[^1]);
         double Met(int khu) => kc[nut.Single(n => n.KhuId == khu).Id];
         Assert.True(Met(R) < Met(HAM) && Met(HAM) < Met(S), $"R {Met(R)} m, Hầm {Met(HAM)} m, S {Met(S)} m");
+        // Thêm khu ô tô không làm dài đường tới khu xe máy (số mét như trước khi có V017)
+        Assert.Equal((202.5, 299.1, 377.3), (Math.Round(Met(R), 1), Math.Round(Met(HAM), 1), Math.Round(Met(S), 1)));
         Assert.All(nut, n => Assert.InRange(n.X, 0, 1));
     }
 
@@ -158,19 +182,42 @@ public class DieuHuongTests
             var (_, truoc) = DuongNganNhat.Tinh(dau.Id, canh);
             return DuongNganNhat.Duong(dau.Id, ra.Id, truoc)!.Select(id => g.CacNut.Single(n => n.Id == id).Ma).ToArray();
         }
-        string[] cuoi = ["TRUC_DONG", "GOC_O", "DOC_TN", "GOC_RA", "LEN_RA", "CONG_Y"];
+        string[] cuoi = ["TRUC_DONG", "DUONG_I", "GOC_O", "DUONG_O", "GOC_PQ", "DOC_TN", "GOC_RA", "LEN_RA", "CONG_Y"];
         Assert.Equal(["KHU_HAM", "LOI_HAM", "RE_HAM", .. cuoi], Ma(HAM));
         Assert.Equal(["KHU_S", "DAU_S", "DOC_S", .. cuoi], Ma(S));
-        Assert.Equal(["KHU_R", "DAU_R", "DUONG_R", "GOC_TREN", "GOC_TRUC", "TRUC_GIUA", "RE_HAM", .. cuoi], Ma(R));
+        Assert.Equal(["KHU_R", "DAU_R", "DUONG_R", "GOC_TREN", "GOC_TRUC", "DUONG_FJ", "TRUC_GIUA", "DUONG_K", "DUONG_G", "DUONG_H", "RE_HAM", .. cuoi], Ma(R));
         // Cổng vào X đánh dấu "cong": "VAO", Cổng ra Y "cong": "RA"
         Assert.Equal(["CONG_X"], g.CacNut.Where(n => n.CongVao).Select(n => n.Ma));
         Assert.Equal(["CONG_Y"], g.CacNut.Where(n => n.CongRa).Select(n => n.Ma));
         Assert.Equal("Cổng vào X", Assert.Single(nut, n => n.LaCongVao).Ten);
     }
 
+    /// <summary>17 khu ô tô A–Q (V017) đều có nút trên đồ thị thật, có đường từ Cổng vào X tới và đường ra Cổng ra Y.</summary>
+    [Fact]
+    public void DoThiThat_17KhuOTo_DeuCoDuongVaoVaDuongRa()
+    {
+        var g = DoThiBanDo.MacDinh;
+        var ma = "ABCDEFGHIJKLMNOPQ".Select(c => c.ToString()).ToArray();
+        var khuTheoMa = ma.Select((m, i) => (m, i)).ToDictionary(x => x.m, x => 100 + x.i);
+        var (nut, canh) = g.ChoBaiXe(khuTheoMa);
+        var cong = Assert.Single(nut, n => n.LaCongVao);
+        var ra = Assert.Single(nut, n => n.LaCongRa);
+        var (kc, _) = DuongNganNhat.Tinh(cong.Id, canh);
+        foreach (var m in ma)
+        {
+            var dau = Assert.Single(nut, n => n.KhuId == khuTheoMa[m]);
+            Assert.Equal($"Khu {m}", dau.Ten);
+            Assert.True(kc.ContainsKey(dau.Id), $"Khu {m} không nối tới Cổng vào X");
+            Assert.True(DuongNganNhat.Tinh(dau.Id, canh).KhoangCach.ContainsKey(ra.Id), $"Khu {m} không có đường ra Cổng ra Y");
+        }
+        // Khu C, D sát đường từ Cổng vào X nên gần nhất; P, Q ở cuối bãi
+        double Met(string m) => kc[nut.Single(n => n.KhuId == khuTheoMa[m]).Id];
+        Assert.True(Met("C") < Met("D") && Met("D") < Met("F") && Met("F") < Met("P"));
+    }
+
     /// <summary>BaiXeModule chạy trên đồ thị thật (do-thi-ban-do.json): mỗi khu R / S / Hầm ra Cổng ra Y, đúng thứ tự nút và số mét.</summary>
     [Theory]
-    [InlineData(R, new[] { "KHU_R", "DAU_R", "DUONG_R", "GOC_TREN", "GOC_TRUC", "TRUC_GIUA", "RE_HAM" })]
+    [InlineData(R, new[] { "KHU_R", "DAU_R", "DUONG_R", "GOC_TREN", "GOC_TRUC", "DUONG_FJ", "TRUC_GIUA", "DUONG_K", "DUONG_G", "DUONG_H", "RE_HAM" })]
     [InlineData(S, new[] { "KHU_S", "DAU_S", "DOC_S" })]
     [InlineData(HAM, new[] { "KHU_HAM", "LOI_HAM", "RE_HAM" })]
     public async Task BaiXeModule_DoThiThat_TimDuongRa_TuMoiKhu_DungThuTuNut(int khu, string[] dau)
@@ -180,7 +227,7 @@ public class DieuHuongTests
         var q = new FakeCauHinhBaiQuery();
         q.Nut.AddRange(nut); q.Canh.AddRange(canh);
         var d = (await new BaiXeModule(null!, q, new FakeClock()).TimDuongRaAsync(khu))!;
-        string[] cuoi = ["TRUC_DONG", "GOC_O", "DOC_TN", "GOC_RA", "LEN_RA", "CONG_Y"];
+        string[] cuoi = ["TRUC_DONG", "DUONG_I", "GOC_O", "DUONG_O", "GOC_PQ", "DOC_TN", "GOC_RA", "LEN_RA", "CONG_Y"];
         DoThiBanDo.Nut N(int id) => g.CacNut.Single(n => n.Id == id);
         Assert.Equal([.. dau, .. cuoi], d.Diem.Select(p => N(p.NutId).Ma));
         Assert.Equal(khu, d.KhuId);

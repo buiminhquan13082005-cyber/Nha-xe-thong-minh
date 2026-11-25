@@ -6,7 +6,7 @@ namespace NhaXe.Modules.TimXe.Contracts;
 /// </summary>
 public interface ITimXeModule
 {
-    /// <summary>Lượt gửi XE MÁY vào trong [tu, den): bao nhiêu lượt có khu, do nguồn nào ghi lần đầu.</summary>
+    /// <summary>Lượt gửi (xe máy, ô tô) được chỉ khu vào trong [tu, den): bao nhiêu lượt có khu, do nguồn nào ghi lần đầu.</summary>
     Task<ThongKeDinhVi> LayThongKeDinhViAsync(DateTime tu, DateTime den, CancellationToken ct = default);
 }
 

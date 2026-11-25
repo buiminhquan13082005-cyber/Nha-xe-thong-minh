@@ -13,8 +13,22 @@ else
   echo "Database NhaXeThongMinh đã có, giữ nguyên dữ liệu."
 fi
 
+# SQL Server "healthy" (trả lời SELECT 1) chưa chắc database đã mở xong sau khi khởi động lại (đang recovery):
+# chờ tới khi NhaXeThongMinh ONLINE, tối đa 120 giây, rồi mới chạy migration (USE NhaXeThongMinh mới chạy được).
+db_online() { SQLCMD -h -1 -Q "SET NOCOUNT ON; SELECT CONVERT(varchar(20), DATABASEPROPERTYEX('NhaXeThongMinh', 'Status'))" 2>/dev/null | tr -d '[:space:]' | grep -qx ONLINE; }
+for i in $(seq 1 60); do
+  db_online && break
+  [ "$i" = 1 ] && echo "Đợi database NhaXeThongMinh mở xong (ONLINE)..."
+  sleep 2
+done
+
 for f in $(ls /scripts/migrations/V*.sql | sort); do
   echo "Chạy migration $(basename "$f")"
-  SQLCMD -i "$f" > /dev/null
+  # Kết quả sqlcmd (gồm cả lỗi Msg ...) ghi tạm; migration lỗi thì in ra log để biết câu nào hỏng
+  if ! SQLCMD -i "$f" > /tmp/migration.log 2>&1; then
+    echo "LỖI khi chạy $(basename "$f"):"
+    cat /tmp/migration.log
+    exit 1
+  fi
 done
 echo "Xong."

@@ -118,7 +118,7 @@ public class TimXeRepository(TimXeDbContext db) : ITimXeRepository
 
     public async Task<ThongKeDinhVi> LayThongKeAsync(DateTime tu, DateTime den, CancellationToken ct)
     {
-        // Lượt xe máy được chỉ khu (có suất giữ) trong khoảng; lần ghi khu đầu tiên của mỗi lượt cho biết nguồn định vị.
+        // Lượt xe (xe máy, ô tô) được chỉ khu (có suất giữ) trong khoảng; lần ghi khu đầu tiên của mỗi lượt cho biết nguồn định vị.
         var luot = await db.Giu.AsNoTracking().Where(g => g.BatDauLuc >= tu && g.BatDauLuc < den).Select(g => g.LuotGuiId).Distinct().ToListAsync(ct);
         if (luot.Count == 0) return new ThongKeDinhVi(0, 0, 0, 0, 0);
         var dau = (await db.ViTri.AsNoTracking().Where(v => luot.Contains(v.LuotGuiId) && v.Huong == HuongDi.Vao).ToListAsync(ct))

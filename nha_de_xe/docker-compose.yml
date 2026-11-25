@@ -68,7 +68,12 @@ services:
       context: .
       dockerfile: docker/web.Dockerfile
     ports:
-      - "127.0.0.1:${WEB_PORT:-8080}:8080"      # chỉ mở trong máy; ra Internet đi qua NGINX của VPS (HTTPS)
+      # WEB_BIND mặc định 127.0.0.1: chỉ mở trong máy; ra Internet đi qua NGINX của VPS (HTTPS).
+      # WEB_BIND=0.0.0.0 (trong .env): mở cho máy khác trong mạng LAN để thử app điện thoại. KHÔNG dùng trên VPS.
+      - "${WEB_BIND:-127.0.0.1}:${WEB_PORT:-8080}:8080"
+    environment:
+      # docker/web-che-do-mang.sh đọc biến này để chọn chế độ máy chủ / LAN (giới hạn đăng nhập, chặn /swagger)
+      WEB_BIND: ${WEB_BIND:-127.0.0.1}
     depends_on:
       - api
     restart: unless-stopped

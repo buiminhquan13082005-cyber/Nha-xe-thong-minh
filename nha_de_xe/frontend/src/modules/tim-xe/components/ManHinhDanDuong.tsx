@@ -4,6 +4,11 @@ import type { DieuHuongCuaToi, KhuCho, PhienDieuHuong } from '../models';
 import { BanDoBai } from './BanDoBai';
 import { DemNguocGiuCho } from './DemNguocGiuCho';
 import { TheKhu } from './TheKhu';
+import { LOAI_O_TO, LOAI_XE_MAY } from '../soDoBai';
+
+/** Gợi ý chấm khu cùng loại xe, tên bãi theo loại xe. */
+const goiYCham = (loaiXeId: number) => (loaiXeId === LOAI_O_TO ? 'chấm khu ô tô (A–Q)' : 'chấm R, S hoặc Hầm');
+const tenBai = (laOTo: boolean) => (laOTo ? 'Bãi ô tô' : 'Bãi xe máy');
 
 const gioPhut = (iso: string) => new Date(iso).toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit' });
 
@@ -36,7 +41,7 @@ export function ManHinhDanDuong({ du, khu, onDong, onDoiKhu }: {
   }, []);
 
   const p = du.phien;
-  const tieuDe = !p ? 'Bãi xe máy' : p.trangThai === 'DANG_DAN' ? 'Đang dẫn đường' : 'Dẫn đường đã kết thúc';
+  const tieuDe = !p ? tenBai(du.hetCho?.loaiXe === 'O_TO') : p.trangThai === 'DANG_DAN' ? 'Đang dẫn đường' : 'Dẫn đường đã kết thúc';
   return (
     <div className="man-dan-duong-che" onClick={(e) => { if (e.target === e.currentTarget) onDong(); }}>
       <section className="man-dan-duong" role="dialog" aria-modal="true" aria-label={tieuDe}>
@@ -52,7 +57,7 @@ export function ManHinhDanDuong({ du, khu, onDong, onDoiKhu }: {
         {p?.trangThai === 'DANG_DAN'
           ? <DangDan p={p} bayGio={du.bayGio} khu={khu} onDoiKhu={onDoiKhu} />
           : p ? <KetThuc p={p} khu={khu} onDong={onDong} />
-          : du.hetCho ? <HetCho bienSo={du.hetCho.bienSo} khu={khu} /> : null}
+          : du.hetCho ? <HetCho bienSo={du.hetCho.bienSo} laOTo={du.hetCho.loaiXe === 'O_TO'} khu={khu} /> : null}
       </section>
     </div>
   );
@@ -93,13 +98,14 @@ function DangDan({ p, bayGio, khu, onDoiKhu }: { p: PhienDieuHuong; bayGio: stri
       )}
       {tin && <div className={`thong-bao thong-bao-${tin.loai}`} role="status">{tin.noiDung}</div>}
 
-      <BanDoBai khu={khu} duong={p.duong} khuDichId={p.khuDich.id} khuChonId={chon?.id} hienViTri
+      {/* Chỉ chấm khu cùng loại xe: đổi khu đích chỉ sang khu cùng loại */}
+      <BanDoBai khu={khu} duong={p.duong} khuDichId={p.khuDich.id} khuChonId={chon?.id} hienViTri loaiXeId={p.khuDich.loaiXeId}
                 onChamKhu={(k) => setChon((c) => (c?.id === k.id ? null : k))} />
 
       {chonMoi
         ? <TheKhu khu={chonMoi} cheDo="dan-duong" laDich={chonMoi.id === p.khuDich.id} dangGui={dangGui}
                   onChiDuong={() => void doi(chonMoi)} onDong={() => setChon(null)} />
-        : <p className="mo mdd-goi-y">Muốn đỗ chỗ khác? Chạm vào chấm R, S hoặc Hầm trên bản đồ.</p>}
+        : <p className="mo mdd-goi-y">Muốn đỗ chỗ khác? Chạm vào {goiYCham(p.khuDich.loaiXeId)} trên bản đồ.</p>}
 
       {p.duong && p.duong.diem.length > 1 && (
         <ol className="mdd-cac-buoc">
@@ -148,21 +154,21 @@ function KetThuc({ p, khu, onDong }: { p: PhienDieuHuong; khu: KhuCho[] | undefi
           <p>Kết thúc dẫn đường, chỗ giữ ở {p.khuDich.ten} đã được trả lại.</p>
         </div>
       )}
-      {thuc && <BanDoBai khu={khu} khuDichId={thuc.id} />}
+      {thuc && <BanDoBai khu={khu} khuDichId={thuc.id} loaiXeId={p.khuDich.loaiXeId} />}
       <button type="button" className="nut" onClick={onDong}>Đã hiểu</button>
     </div>
   );
 }
 
-function HetCho({ bienSo, khu }: { bienSo: string; khu: KhuCho[] | undefined }) {
+function HetCho({ bienSo, laOTo, khu }: { bienSo: string; laOTo: boolean; khu: KhuCho[] | undefined }) {
   return (
     <div className="mdd-than">
       <div className="mdd-ket-qua mdd-canh">
         <div className="mdd-bieu-tuong" aria-hidden="true">!</div>
-        <h2>Bãi xe máy đã hết chỗ</h2>
-        <p>Xe {hienThiBienSo(bienSo)} đã qua cổng nhưng các khu R, S, Hầm đều đã đầy nên chưa chỉ đường được. Vui lòng hỏi nhân viên bãi.</p>
+        <h2>{tenBai(laOTo)} đã hết chỗ</h2>
+        <p>Xe {hienThiBienSo(bienSo)} đã qua cổng nhưng {laOTo ? 'các khu ô tô' : 'các khu R, S, Hầm'} đều đã đầy nên chưa chỉ đường được. Vui lòng hỏi nhân viên bãi.</p>
       </div>
-      <BanDoBai khu={khu} />
+      <BanDoBai khu={khu} loaiXeId={laOTo ? LOAI_O_TO : LOAI_XE_MAY} />
     </div>
   );
 }

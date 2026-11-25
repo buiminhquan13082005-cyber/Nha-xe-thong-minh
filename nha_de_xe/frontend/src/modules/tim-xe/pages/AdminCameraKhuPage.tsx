@@ -63,7 +63,7 @@ export function AdminCameraKhuPage() {
 
   // Khu có camera khu (hướng vào / hướng ra / kiểu cũ hai hướng)
   const cameraKhu = useMemo(() => ch.duLieu?.camera.filter((c) => c.vaiTro === 'KHU_VAO' || c.vaiTro === 'KHU_RA' || c.vaiTro === 'LOI_VAO_KHU') ?? [], [ch.duLieu]);
-  // Chỉ khu đang dùng (khu tạm tắt như Khu A, B ô tô không hiện; bật lại ở Quản lý bãi)
+  // Chỉ khu đang dùng (khu tạm tắt không hiện; bật lại ở Quản lý bãi)
   const dsKhu = useMemo(() => (ch.duLieu?.khu ?? []).filter((k) => k.dangDung && cameraKhu.some((c) => c.khuId === k.id)), [ch.duLieu, cameraKhu]);
   useEffect(() => { if (!khuId && dsKhu.length) setKhuId(dsKhu[0].id); }, [khuId, dsKhu]);
   const cam = cameraKhu.find((c) => c.khuId === khuId && c.vaiTro === (huong === 'vao' ? 'KHU_VAO' : 'KHU_RA'))
